@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroVendas - Fornecedores</title>
+    <link rel="stylesheet" href="assets/css/Fornecedores.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>AgroVendas</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="Fornecedores.html" class="nav-item active">
+                    <span class="icon">&#128230;</span>
+                    Fornecedores
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">&#128176;</span>
+                    Gestao Financeira
+                </a>
+                <a href="EstoqueDoDia.html" class="nav-item">
+                    <span class="icon">&#128203;</span>
+                    Estoque do Dia
+                </a>
+                <a href="VendasDoDia.html" class="nav-item">
+                    <span class="icon">&#128722;</span>
+                    Vendas do Dia
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">&#128101;</span>
+                    Clientes
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <h1>Fornecedores</h1>
+                <button class="btn-primary" onclick="abrirModalFornecedor()">+ Novo Fornecedor</button>
+            </header>
+
+            <!-- Lista de Fornecedores -->
+            <div class="fornecedores-grid" id="listaFornecedores">
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Novo Fornecedor -->
+    <div id="modalFornecedor" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="modalFornecedorTitulo">Cadastrar Fornecedor</h2>
+                <button class="close-btn" onclick="fecharModalFornecedor()">&times;</button>
+            </div>
+            <form id="formFornecedor">
+                <input type="hidden" id="fornecedorId">
+                
+                <div class="form-group">
+                    <label for="nomeFornecedor">Nome do Fornecedor</label>
+                    <input type="text" id="nomeFornecedor" required placeholder="Digite o nome do fornecedor">
+                </div>
+                
+                <div class="form-group">
+                    <label for="areaCeasa">Area no CEASA</label>
+                    <input type="text" id="areaCeasa" required placeholder="Ex: Box A12, Setor B, Pavilhao 3">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="fecharModalFornecedor()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Entregas do Fornecedor -->
+    <div id="modalEntregas" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="modalEntregasTitulo">Entregas - Fornecedor</h2>
+                <button class="close-btn" onclick="fecharModalEntregas()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="entregas-header">
+                    <button class="btn-primary" onclick="abrirModalNovaEntrega()">+ Nova Entrega</button>
+                </div>
+                
+                <!-- Resumo de Totais -->
+                <div class="resumo-totais" id="resumoTotais">
+                    <div class="resumo-item">
+                        <span class="resumo-label">Total Caixas 6424:</span>
+                        <span class="resumo-valor" id="totalCaixas6424">0</span>
+                    </div>
+                    <div class="resumo-item">
+                        <span class="resumo-label">Total Caixas Papelao:</span>
+                        <span class="resumo-valor" id="totalCaixasPapelao">0</span>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Mercadoria</th>
+                                <th>Caixas 6424</th>
+                                <th>Caixas Papelao</th>
+                                <th>Acoes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaEntregas">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nova Entrega -->
+    <div id="modalNovaEntrega" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalNovaEntregaTitulo">Registrar Entrega</h2>
+                <button class="close-btn" onclick="fecharModalNovaEntrega()">&times;</button>
+            </div>
+            <form id="formEntrega">
+                <input type="hidden" id="entregaId">
+                <input type="hidden" id="entregaFornecedorId">
+                
+                <div class="form-group">
+                    <label for="dataEntrega">Data da Entrega</label>
+                    <input type="date" id="dataEntrega" required>
+                </div>
+
+                <div class="form-section">
+                    <h3>Mercadorias Entregues</h3>
+                    <div id="listaMercadoriasEntrega">
+                    </div>
+                    <button type="button" class="btn-secondary" onclick="adicionarMercadoriaEntrega()">+ Adicionar Mercadoria</button>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="fecharModalNovaEntrega()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar Entrega</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="assets/js/Fornecedores.js"></script>
+</body>
+</html>

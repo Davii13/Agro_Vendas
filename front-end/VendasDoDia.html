@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroVendas - Vendas do Dia</title>
+    <link rel="stylesheet" href="assets/css/vendasDoDia.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>AgroVendas</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="Fornecedores.html" class="nav-item">
+                    <span class="icon">📦</span>
+                    Fornecedores
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">💰</span>
+                    Gestão Financeira
+                </a>
+                <a href="EstoqueDoDia.html" class="nav-item">
+                    <span class="icon">📋</span>
+                    Estoque do Dia
+                </a>
+                <a href="VendasDoDia.html" class="nav-item active">
+                    <span class="icon">🛒</span>
+                    Vendas do Dia
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">👥</span>
+                    Clientes
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <h1>Vendas do Dia</h1>
+                <div class="header-actions">
+                    <input type="date" id="dataVenda" class="date-input">
+                    <button class="btn-primary" onclick="abrirModalVenda()">+ Nova Venda</button>
+                </div>
+            </header>
+
+            <!-- Resumo -->
+            <div class="summary-cards">
+                <div class="card">
+                    <h3>Total de Vendas</h3>
+                    <p id="totalVendas">0</p>
+                </div>
+                <div class="card">
+                    <h3>Vendas Pagas</h3>
+                    <p id="vendasPagas">0</p>
+                </div>
+                <div class="card">
+                    <h3>Vendas Devendo</h3>
+                    <p id="vendasDevendo">0</p>
+                </div>
+                <div class="card">
+                    <h3>Total Caixas</h3>
+                    <p id="totalCaixas">0</p>
+                </div>
+            </div>
+
+            <!-- Tabela de Vendas -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Mercadorias</th>
+                            <th>Qtde Caixas</th>
+                            <th>Valor Unit. (R$)</th>
+                            <th>Modelo Caixa</th>
+                            <th>Caixas 6424 c/ Vale</th>
+                            <th>Pagamento Verduras</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaVendas">
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Nova Venda -->
+    <div id="modalVenda" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitulo">Registrar Nova Venda</h2>
+                <button class="close-btn" onclick="fecharModalVenda()">&times;</button>
+            </div>
+            <form id="formVenda">
+                <input type="hidden" id="vendaId">
+                
+                <div class="form-group">
+                    <label for="cliente">Nome do Cliente</label>
+                    <input type="text" id="cliente" required placeholder="Digite o nome do cliente">
+                </div>
+
+                <div class="form-section">
+                    <h3>Mercadorias</h3>
+                    <div id="listaMercadorias">
+                    </div>
+                    <button type="button" class="btn-secondary" onclick="adicionarMercadoria()">+ Adicionar Mercadoria</button>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="modeloCaixa">Modelo de Caixa Principal</label>
+                        <select id="modeloCaixa" required>
+                            <option value="">Selecione...</option>
+                            <option value="Papelão">Papelão</option>
+                            <option value="6424">Modelo 6424</option>
+                            <option value="Misto">Misto (Ambos)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-section caixa-6424-section" id="secaoCaixa6424" style="display: none;">
+                    <h3>Caixas Modelo 6424</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="qtdeCaixas6424">Qtde Total Caixas 6424</label>
+                            <input type="number" id="qtdeCaixas6424" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="caixasPagasVale">Caixas Pagas com Vale</label>
+                            <input type="number" id="caixasPagasVale" min="0" value="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="caixasDevendoVale">Caixas Devendo (Vale)</label>
+                        <input type="number" id="caixasDevendoVale" min="0" value="0" readonly>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Pagamento das Verduras</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="pagamentoVerduras">Status do Pagamento</label>
+                            <select id="pagamentoVerduras" required>
+                                <option value="">Selecione...</option>
+                                <option value="Pago">Pago</option>
+                                <option value="Devendo">Devendo</option>
+                                <option value="Parcial">Pago Parcialmente</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="grupovalorPago" style="display: none;">
+                            <label for="valorPago">Valor Pago (R$)</label>
+                            <input type="number" id="valorPago" min="0" step="0.01" value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="fecharModalVenda()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar Venda</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="assets/js/vendasDoDia.js"></script>
+</body>
+</html>

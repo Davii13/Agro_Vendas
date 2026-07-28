@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroVendas - Estoque do Dia</title>
+    <link rel="stylesheet" href="assets/css/EstoqueDoDia.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>AgroVendas</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="Fornecedores.html" class="nav-item">
+                    <span class="icon">📦</span>
+                    Fornecedores
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">💰</span>
+                    Gestão Financeira
+                </a>
+                <a href="EstoqueDoDia.html" class="nav-item active">
+                    <span class="icon">📋</span>
+                    Estoque do Dia
+                </a>
+                <a href="VendasDoDia.html" class="nav-item">
+                    <span class="icon">🛒</span>
+                    Vendas do Dia
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">👥</span>
+                    Clientes
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <h1>Estoque do Dia</h1>
+                <div class="header-actions">
+                    <input type="date" id="dataEstoque" class="date-input">
+                </div>
+            </header>
+
+            <!-- Resumo do Estoque -->
+            <div class="summary-cards">
+                <div class="card">
+                    <h3>Total de Mercadorias</h3>
+                    <p id="totalMercadorias">0</p>
+                </div>
+                <div class="card">
+                    <h3>Total de Caixas</h3>
+                    <p id="totalCaixas">0</p>
+                </div>
+                <div class="card">
+                    <h3>Fornecedores Ativos</h3>
+                    <p id="fornecedoresAtivos">0</p>
+                </div>
+                <div class="card">
+                    <h3>Caixas 6424</h3>
+                    <p id="caixas6424">0</p>
+                </div>
+            </div>
+
+            <!-- Estoque por Mercadoria -->
+            <section class="section">
+                <h2>Estoque Consolidado por Mercadoria</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mercadoria</th>
+                                <th>Total Caixas</th>
+                                <th>Caixas Papelão</th>
+                                <th>Caixas 6424</th>
+                                <th>Fornecedores</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaEstoqueConsolidado">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Entregas do Dia -->
+            <section class="section">
+                <h2>Entregas Recebidas no Dia</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fornecedor</th>
+                                <th>Mercadoria</th>
+                                <th>Qtde Caixas</th>
+                                <th>Modelo Caixa</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaEntregasDia">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Comparativo: Recebido vs Vendido -->
+            <section class="section">
+                <h2>Comparativo: Recebido vs Vendido</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mercadoria</th>
+                                <th>Recebido (Caixas)</th>
+                                <th>Vendido (Caixas)</th>
+                                <th>Saldo</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaComparativo">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="assets/js/EstoqueDoDia.js"></script>
+</body>
+</html>
