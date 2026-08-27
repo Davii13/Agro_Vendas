@@ -709,6 +709,7 @@ export default function AgroVendasPage() {
       if (res.ok) {
         setReturnBoxModalOpen(false)
         loadSales(selectedDate)
+        loadAllSales()
       } else {
         alert("Erro ao registrar devolução.")
       }
