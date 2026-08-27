@@ -41,7 +41,10 @@ public class VendaController {
     }
 
     @GetMapping
-    public List<Venda> listarPorData(@RequestParam String data) {
+    public List<Venda> listarPorData(@RequestParam(required = false) String data) {
+        if (data == null) {
+            return vendaService.listarTodas();
+        }
         return vendaService.listarPorData(LocalDate.parse(data));
     }
 

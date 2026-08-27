@@ -70,6 +70,10 @@ public class VendaService {
         return vendaRepo.findByData(data);
     }
 
+    public List<Venda> listarTodas() {
+        return vendaRepo.findAll();
+    }
+
     public void excluir(Long id) {
         vendaRepo.deleteById(id);
     }
