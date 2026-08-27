@@ -403,7 +403,12 @@ export default function AgroVendasPage() {
                     <p style="margin: 3px 0; font-size: 12px;"><strong style="color: ${sale.caixasDevendoVale > 0 ? "#dc2626" : "#059669"};">Devendo:</strong> ${sale.caixasDevendoVale}</p>
                   </div>
                 ` : ""}
-                <p style="margin: 5px 0; font-size: 13px; font-weight: bold; color: #047857;">Total: R$ ${saleTotal.toFixed(2)}</p>
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 8px;">
+                  <div>
+                    <p style="margin: 5px 0; font-size: 13px; font-weight: bold; color: #047857;">Total: R$ ${saleTotal.toFixed(2)}</p>
+                    ${sale.pagamentoVerduras === "Parcial" ? `<p style="margin: 5px 0; font-size: 12px; color: #666;"><strong>Valor Pago:</strong> R$ ${sale.valorPago.toFixed(2)}</p><p style="margin: 5px 0; font-size: 12px; color: #dc2626;"><strong>Valor Pendente:</strong> R$ ${(saleTotal - sale.valorPago).toFixed(2)}</p>` : ""}
+                  </div>
+                </div>
               </div>
             `
           }).join("")}
