@@ -28,6 +28,8 @@ import {
   HelpCircle,
   Truck,
   RotateCcw,
+  Printer,
+  Download,
 } from "lucide-react"
 
 // Backend API Base Configuration
@@ -361,6 +363,77 @@ export default function AgroVendasPage() {
     if (!confirm("Excluir este cliente? As vendas permanecerão registradas, mas sem vínculo ao cadastro.")) return
     const res = await fetch(`${API_BASE}/clientes/${id}`, { method: "DELETE" })
     if (res.ok) { setCustomerDetails(null); loadCustomers(customerSearch) }
+  }
+
+  const generateHistoryHTML = () => {
+    if (!customerDetails) return ""
+    const totalVendas = customerDetails.vendas.length
+    const totalValor = customerDetails.vendas.reduce((sum, sale) => sum + sale.mercadorias.reduce((total, m) => total + m.qtde * m.valor, 0), 0)
+
+    return `
+      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px;">
+        <h1 style="color: #1e3a1f; text-align: center; margin-bottom: 30px;">Histórico de Compras</h1>
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <h2 style="color: #047857; margin: 0 0 10px 0; font-size: 16px;">Cliente: ${customerDetails.cliente.nome}</h2>
+          <p style="margin: 5px 0; font-size: 13px;"><strong>Telefone:</strong> ${customerDetails.cliente.telefone || "N/A"}</p>
+          <p style="margin: 5px 0; font-size: 13px;"><strong>Email:</strong> ${customerDetails.cliente.email || "N/A"}</p>
+          <p style="margin: 5px 0; font-size: 13px;"><strong>Observações:</strong> ${customerDetails.cliente.observacoes || "N/A"}</p>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #1e3a1f; border-bottom: 2px solid #047857; padding-bottom: 10px;">Resumo</h3>
+          <p style="font-size: 14px;"><strong>Total de Compras:</strong> ${totalVendas}</p>
+          <p style="font-size: 14px;"><strong>Valor Total:</strong> R$ ${totalValor.toFixed(2)}</p>
+        </div>
+        <div style="margin-top: 20px;">
+          <h3 style="color: #1e3a1f; border-bottom: 2px solid #047857; padding-bottom: 10px;">Detalhes das Compras</h3>
+          ${customerDetails.vendas.map(sale => {
+            const saleTotal = sale.mercadorias.reduce((total, m) => total + m.qtde * m.valor, 0)
+            return `
+              <div style="border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; border-radius: 5px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <strong style="color: #1e3a1f;">${new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR")}</strong>
+                  <span style="background: ${sale.pagamentoVerduras === "Pago" ? "#dcfce7" : sale.pagamentoVerduras === "Parcial" ? "#fef3c7" : "#fee2e2"}; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold;">${sale.pagamentoVerduras}</span>
+                </div>
+                <p style="margin: 5px 0; font-size: 13px; color: #555;">${sale.mercadorias.map(m => `${m.nome} (${m.qtde})`).join(", ")}</p>
+                <p style="margin: 5px 0; font-size: 13px; font-weight: bold; color: #047857;">Total: R$ ${saleTotal.toFixed(2)}</p>
+              </div>
+            `
+          }).join("")}
+        </div>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; font-size: 11px; color: #666;">
+          <p>Relatório gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</p>
+        </div>
+      </div>
+    `
+  }
+
+  const printCustomerHistory = () => {
+    if (!customerDetails) return
+    const printWindow = window.open("", "", "width=900,height=700")
+    if (printWindow) {
+      printWindow.document.write(generateHistoryHTML())
+      printWindow.document.close()
+      setTimeout(() => {
+        printWindow.print()
+      }, 250)
+    }
+  }
+
+  const downloadCustomerHistoryPDF = async () => {
+    if (!customerDetails) return
+    const html2pdf = (await import("html2pdf.js")).default
+    const element = document.createElement("div")
+    element.innerHTML = generateHistoryHTML()
+
+    const opt: any = {
+      margin: 10,
+      filename: `historico_${customerDetails.cliente.nome.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { orientation: "portrait", unit: "mm", format: "a4" },
+    }
+
+    html2pdf().set(opt).from(element).save()
   }
 
   const handleDeleteSale = async (id: number) => {
@@ -1013,7 +1086,52 @@ export default function AgroVendasPage() {
                   </div>
                 </CardContent>
               </Card>
-              {customerDetails && <Card className="border-emerald-100"><CardHeader><div className="flex justify-between"><div><CardTitle>Histórico de {customerDetails.cliente.nome}</CardTitle><p className="text-sm text-slate-500 mt-1">{customerDetails.cliente.telefone || ""} {customerDetails.cliente.email ? `• ${customerDetails.cliente.email}` : ""}</p></div><Button variant="ghost" size="icon" onClick={() => setCustomerDetails(null)}><X className="w-4 h-4" /></Button></div></CardHeader><CardContent className="space-y-3">{customerDetails.vendas.map(sale => <div key={sale.id} className="p-4 rounded-lg border border-slate-100"><div className="flex justify-between font-semibold"><span>{new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR")}</span><span>{sale.pagamentoVerduras}</span></div><p className="text-sm text-slate-600 mt-2">{sale.mercadorias.map(m => `${m.nome} (${m.qtde})`).join(", ")}</p><p className="text-sm font-bold mt-1">Total: R$ {sale.mercadorias.reduce((total, m) => total + m.qtde * m.valor, 0).toFixed(2)}</p></div>)}{customerDetails.vendas.length === 0 && <p className="text-slate-400">Este cliente ainda não possui compras vinculadas.</p>}</CardContent></Card>}
+              {customerDetails && (
+                <Card className="border-emerald-100">
+                  <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle>Histórico de {customerDetails.cliente.nome}</CardTitle>
+                      <p className="text-sm text-slate-500 mt-1">{customerDetails.cliente.telefone || ""} {customerDetails.cliente.email ? `• ${customerDetails.cliente.email}` : ""}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={printCustomerHistory}
+                        className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                      >
+                        <Printer className="w-4 h-4 mr-2" /> Imprimir
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={downloadCustomerHistoryPDF}
+                        className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                      >
+                        <Download className="w-4 h-4 mr-2" /> Salvar PDF
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setCustomerDetails(null)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {customerDetails.vendas.map(sale => (
+                      <div key={sale.id} className="p-4 rounded-lg border border-slate-100">
+                        <div className="flex justify-between font-semibold">
+                          <span>{new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getPaymentBadge(sale.pagamentoVerduras)}`}>
+                            {sale.pagamentoVerduras}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600 mt-2">{sale.mercadorias.map(m => `${m.nome} (${m.qtde})`).join(", ")}</p>
+                        <p className="text-sm font-bold mt-1">Total: R$ {sale.mercadorias.reduce((total, m) => total + m.qtde * m.valor, 0).toFixed(2)}</p>
+                      </div>
+                    ))}
+                    {customerDetails.vendas.length === 0 && <p className="text-slate-400">Este cliente ainda não possui compras vinculadas.</p>}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
