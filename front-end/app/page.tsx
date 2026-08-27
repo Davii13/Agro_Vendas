@@ -30,7 +30,9 @@ import {
   RotateCcw,
   Printer,
   Download,
+  FileDown,
 } from "lucide-react"
+import * as XLSX from "xlsx"
 
 // Backend API Base Configuration
 const API_BASE = "http://localhost:8080/api"
@@ -92,6 +94,7 @@ export default function AgroVendasPage() {
 
   // Core Data Lists
   const [sales, setSales] = useState<Sale[]>([])
+  const [allSales, setAllSales] = useState<Sale[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [customerSearch, setCustomerSearch] = useState("")
@@ -165,6 +168,21 @@ export default function AgroVendasPage() {
     }
   }, [])
 
+  // Load All Sales (all dates for crate tracking)
+  const loadAllSales = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/vendas`)
+      if (res.ok) {
+        const data = await res.json()
+        setAllSales(data)
+      } else {
+        console.error("Erro ao buscar todas as vendas")
+      }
+    } catch (e) {
+      console.error("Erro de conexão ao buscar vendas:", e)
+    }
+  }, [])
+
   // Load All Suppliers
   const loadSuppliers = useCallback(async () => {
     try {
@@ -213,7 +231,8 @@ export default function AgroVendasPage() {
     }
     loadSuppliers()
     loadCustomers()
-  }, [selectedDate, loadSales, loadSuppliers, loadCustomers])
+    loadAllSales()
+  }, [selectedDate, loadSales, loadSuppliers, loadCustomers, loadAllSales])
 
   // Load deliveries for expanded suppliers
   useEffect(() => {
@@ -447,6 +466,36 @@ export default function AgroVendasPage() {
     }
 
     html2pdf().set(opt).from(element).save()
+  }
+
+  const exportSalesToExcel = () => {
+    if (sales.length === 0) {
+      alert("Nenhuma venda para exportar.")
+      return
+    }
+
+    const data = sales.map(sale => ({
+      Data: new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR"),
+      Cliente: sale.cliente,
+      Mercadorias: sale.mercadorias.map(m => `${m.nome} (${m.qtde})`).join("; "),
+      "Modelo Caixa": sale.modeloCaixa,
+      "Qtde Caixas 6424": sale.qtdeCaixas6424 || "-",
+      "Caixas Pagas": sale.caixasPagasVale || "-",
+      "Caixas Devendo": sale.caixasDevendoVale || "-",
+      "Status Pagamento": sale.pagamentoVerduras,
+      "Valor Pago": sale.valorPago || "-",
+      Total: sale.mercadorias.reduce((total, m) => total + m.qtde * m.valor, 0).toFixed(2),
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(data)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Vendas")
+
+    // Ajustar largura das colunas
+    const colWidths = [12, 20, 35, 15, 15, 12, 12, 18, 12, 12]
+    worksheet["!cols"] = colWidths.map(width => ({ wch: width }))
+
+    XLSX.writeFile(workbook, `vendas_${selectedDate || new Date().toISOString().split("T")[0]}.xlsx`)
   }
 
   const handleDeleteSale = async (id: number) => {
@@ -958,12 +1007,21 @@ export default function AgroVendasPage() {
                     <CardTitle className="text-lg font-bold text-emerald-950">Planilha do Dia</CardTitle>
                     <p className="text-xs text-slate-500 mt-0.5">Vendas lançadas para {selectedDate ? new Date(selectedDate + "T00:00:00").toLocaleDateString("pt-BR") : ""}</p>
                   </div>
-                  <Button
-                    onClick={openNewSaleModal}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl"
-                  >
-                    <Plus className="w-4 h-4 mr-2" /> Nova Venda
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={exportSalesToExcel}
+                      variant="outline"
+                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold"
+                    >
+                      <FileDown className="w-4 h-4 mr-2" /> Exportar Excel
+                    </Button>
+                    <Button
+                      onClick={openNewSaleModal}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl"
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Nova Venda
+                    </Button>
+                  </div>
                 </CardHeader>
                 
                 <CardContent className="p-0">
@@ -1549,9 +1607,9 @@ export default function AgroVendasPage() {
                 <Card className="shadow-lg border border-slate-100 overflow-hidden">
                   <CardHeader className="bg-gradient-to-r from-emerald-50 to-slate-50/50 p-6 border-b border-slate-100">
                     <CardTitle className="text-lg font-bold text-emerald-950 flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-rose-500" /> Vales Caixas Devidos por Clientes (Hoje)
+                      <AlertCircle className="w-5 h-5 text-rose-500" /> Vales Caixas Devidos por Clientes (Histórico)
                     </CardTitle>
-                    <p className="text-xs text-slate-500">Rastreamento de embalagens 6424 devidas para controle de vasilhames.</p>
+                    <p className="text-xs text-slate-500">Rastreamento de embalagens 6424 devidas para controle de vasilhames - dados históricos completos.</p>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
@@ -1559,15 +1617,17 @@ export default function AgroVendasPage() {
                         <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
                           <tr>
                             <th className="px-6 py-3 text-left">Cliente</th>
+                            <th className="px-6 py-3 text-center">Data</th>
                             <th className="px-6 py-3 text-center">Total Caixas 6424</th>
                             <th className="px-6 py-3 text-center">Vales Devidos</th>
                             <th className="px-6 py-3 text-center">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
-                          {sales.filter(s => s.caixasDevendoVale > 0).map((sale) => (
+                          {allSales.filter(s => s.caixasDevendoVale > 0).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((sale) => (
                             <tr key={sale.id} className="hover:bg-slate-50/40">
                               <td className="px-6 py-4 font-bold text-slate-800">{sale.cliente}</td>
+                              <td className="px-6 py-4 text-center text-slate-600">{new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR")}</td>
                               <td className="px-6 py-4 text-center font-semibold text-slate-600">{sale.qtdeCaixas6424}</td>
                               <td className="px-6 py-4 text-center font-extrabold text-rose-600">{sale.caixasDevendoVale} caixas</td>
                               <td className="px-6 py-4 text-center">
@@ -1582,10 +1642,10 @@ export default function AgroVendasPage() {
                             </tr>
                           ))}
 
-                          {sales.filter(s => s.caixasDevendoVale > 0).length === 0 && (
+                          {allSales.filter(s => s.caixasDevendoVale > 0).length === 0 && (
                             <tr>
-                              <td colSpan={4} className="text-center py-12 text-slate-400">
-                                Excelente! Nenhum cliente tem pendências de devolução de caixas 6424 nesta data.
+                              <td colSpan={5} className="text-center py-12 text-slate-400">
+                                Excelente! Nenhum cliente tem pendências de devolução de caixas 6424.
                               </td>
                             </tr>
                           )}
