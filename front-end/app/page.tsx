@@ -394,7 +394,15 @@ export default function AgroVendasPage() {
                   <strong style="color: #1e3a1f;">${new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR")}</strong>
                   <span style="background: ${sale.pagamentoVerduras === "Pago" ? "#dcfce7" : sale.pagamentoVerduras === "Parcial" ? "#fef3c7" : "#fee2e2"}; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold;">${sale.pagamentoVerduras}</span>
                 </div>
+                <p style="margin: 5px 0; font-size: 13px; color: #555;"><strong>Modelo de Caixa:</strong> ${sale.modeloCaixa}</p>
                 <p style="margin: 5px 0; font-size: 13px; color: #555;">${sale.mercadorias.map(m => `${m.nome} (${m.qtde})`).join(", ")}</p>
+                ${sale.modeloCaixa !== "Papelão" ? `
+                  <div style="background: #f0fdf4; padding: 8px; border-left: 3px solid #047857; margin: 8px 0; border-radius: 3px;">
+                    <p style="margin: 3px 0; font-size: 12px;"><strong>Caixas 6424:</strong> ${sale.qtdeCaixas6424}</p>
+                    <p style="margin: 3px 0; font-size: 12px;"><strong>Pagas (Vale):</strong> ${sale.caixasPagasVale}</p>
+                    <p style="margin: 3px 0; font-size: 12px;"><strong style="color: ${sale.caixasDevendoVale > 0 ? "#dc2626" : "#059669"};">Devendo:</strong> ${sale.caixasDevendoVale}</p>
+                  </div>
+                ` : ""}
                 <p style="margin: 5px 0; font-size: 13px; font-weight: bold; color: #047857;">Total: R$ ${saleTotal.toFixed(2)}</p>
               </div>
             `
