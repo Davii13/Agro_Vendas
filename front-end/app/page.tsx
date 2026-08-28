@@ -1,6 +1,9 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { LogoutButton } from "@/components/LogoutButton"
+import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -821,21 +824,29 @@ export default function AgroVendasPage() {
     }
   }
 
+  const { user } = useAuth()
+
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-800 font-sans">
-      {/* Sidebar Dashboard Navigation */}
-      <aside className="w-68 bg-gradient-to-b from-emerald-900 via-green-950 to-emerald-950 text-white p-6 flex flex-col shadow-2xl shrink-0">
-        <div className="mb-10 pb-4 border-b border-emerald-800/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
-              <Warehouse className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">AgroVendas</h1>
-              <p className="text-emerald-300 text-xs font-semibold tracking-wider uppercase">CEASA Hortifruti</p>
+    <ProtectedRoute>
+      <div className="flex min-h-screen bg-slate-50 text-slate-800 font-sans">
+        {/* Sidebar Dashboard Navigation */}
+        <aside className="w-68 bg-gradient-to-b from-emerald-900 via-green-950 to-emerald-950 text-white p-6 flex flex-col shadow-2xl shrink-0">
+          <div className="mb-10 pb-4 border-b border-emerald-800/60">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
+                <Warehouse className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">AgroVendas</h1>
+                <p className="text-emerald-300 text-xs font-semibold tracking-wider uppercase">CEASA Hortifruti</p>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div className="mb-4 pb-4 border-b border-emerald-800/60">
+            <p className="text-emerald-100 text-sm">Olá, <strong>{user?.nome}</strong></p>
+            <p className="text-emerald-300 text-xs">{user?.email}</p>
+          </div>
 
         <nav className="space-y-2 flex-1">
           <button
@@ -900,9 +911,12 @@ export default function AgroVendasPage() {
         </nav>
 
         {/* Global Connection Badge */}
-        <div className="pt-4 border-t border-emerald-800/60 mt-auto flex items-center gap-2 text-xs text-emerald-300">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Banco MySQL Conectado</span>
+        <div className="pt-4 border-t border-emerald-800/60 mt-auto space-y-3">
+          <div className="flex items-center gap-2 text-xs text-emerald-300">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Banco Conectado</span>
+          </div>
+          <LogoutButton />
         </div>
       </aside>
 
@@ -2036,5 +2050,6 @@ export default function AgroVendasPage() {
       </Dialog>
 
     </div>
+    </ProtectedRoute>
   )
 }

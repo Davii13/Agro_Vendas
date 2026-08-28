@@ -27,12 +27,12 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponseDTO> login(@RequestBody LoginRequestDTO request) {
+    public ResponseEntity<?> login(@RequestBody LoginRequestDTO request) {
         try {
             AuthResponseDTO response = authService.login(request);
             return ResponseEntity.ok(response);
         } catch (AuthException e) {
-            return ResponseEntity.status(401).build();
+            return ResponseEntity.status(401).body(Map.of("erro", e.getMessage()));
         }
     }
 
