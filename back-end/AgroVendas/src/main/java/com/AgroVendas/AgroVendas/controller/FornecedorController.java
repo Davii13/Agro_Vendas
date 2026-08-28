@@ -4,6 +4,7 @@ package com.AgroVendas.AgroVendas.controller;
 import com.AgroVendas.AgroVendas.dto.FornecedorDTO;
 import com.AgroVendas.AgroVendas.model.Fornecedor;
 import com.AgroVendas.AgroVendas.service.FornecedorService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,7 +15,8 @@ import java.util.List;
         "http://127.0.0.1:5500",
         "http://localhost:5500",
         "http://localhost:3000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
+        "http://172.19.224.1:3000"
     },
     allowedHeaders = "*",
     methods = {
@@ -25,6 +27,7 @@ import java.util.List;
         RequestMethod.OPTIONS
     }
 )
+@PreAuthorize("isAuthenticated()")
 public class FornecedorController {
 
     private final FornecedorService service;
