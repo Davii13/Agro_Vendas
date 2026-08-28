@@ -40,8 +40,4 @@ public class Usuario {
     public void setSenha(String senha) {
         this.senhaHash = new BCryptPasswordEncoder().encode(senha);
     }
-
-    public boolean verificarSenha(String senha) {
-        return new BCryptPasswordEncoder().matches(senha, this.senhaHash);
-    }
 }

@@ -5,8 +5,8 @@ import com.AgroVendas.AgroVendas.dto.LoginRequestDTO;
 import com.AgroVendas.AgroVendas.dto.UserDTO;
 import com.AgroVendas.AgroVendas.exception.AuthException;
 import com.AgroVendas.AgroVendas.model.Usuario;
+import com.AgroVendas.AgroVendas.repository.UsuarioRepository;
 import com.AgroVendas.AgroVendas.service.AuthService;
-import com.AgroVendas.AgroVendas.service.TokenService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,9 +21,11 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final UsuarioRepository usuarioRepository;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, UsuarioRepository usuarioRepository) {
         this.authService = authService;
+        this.usuarioRepository = usuarioRepository;
     }
 
     @PostMapping("/login")
@@ -76,6 +78,35 @@ public class AuthController {
 
         Usuario usuario = (Usuario) auth.getPrincipal();
         return ResponseEntity.ok(UserDTO.fromUsuario(usuario));
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Map<String, String> request) {
+        try {
+            String email = request.get("email");
+            String senha = request.get("senha");
+            String nome = request.get("nome");
+
+            if (email == null || email.isEmpty() || senha == null || senha.isEmpty() || nome == null || nome.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("erro", "Email, senha e nome são obrigatórios"));
+            }
+
+            if (usuarioRepository.findByEmail(email).isPresent()) {
+                return ResponseEntity.badRequest().body(Map.of("erro", "Email já cadastrado"));
+            }
+
+            Usuario usuario = new Usuario();
+            usuario.setEmail(email);
+            usuario.setSenha(senha);
+            usuario.setNome(nome);
+            usuario.setAtivo(true);
+
+            usuarioRepository.save(usuario);
+
+            return ResponseEntity.status(201).body(UserDTO.fromUsuario(usuario));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("erro", "Erro ao registrar: " + e.getMessage()));
+        }
     }
 
     @ExceptionHandler(AuthException.class)

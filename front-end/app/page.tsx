@@ -36,9 +36,7 @@ import {
   FileDown,
 } from "lucide-react"
 import * as XLSX from "xlsx"
-
-// Backend API Base Configuration
-const API_BASE = "http://localhost:8080/api"
+import { apiCall } from "@/lib/api"
 
 // Frontend Types matching Backend DTOs & Models
 type ProductItem = {
@@ -159,7 +157,7 @@ export default function AgroVendasPage() {
   const loadSales = useCallback(async (date: string) => {
     if (!date) return
     try {
-      const res = await fetch(`${API_BASE}/vendas?data=${date}`)
+      const res = await apiCall(`/vendas?data=${date}`)
       if (res.ok) {
         const data = await res.json()
         setSales(data)
@@ -174,7 +172,7 @@ export default function AgroVendasPage() {
   // Load All Sales (all dates for crate tracking)
   const loadAllSales = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/vendas`)
+      const res = await apiCall(`/vendas`)
       if (res.ok) {
         const data = await res.json()
         setAllSales(data)
@@ -189,7 +187,7 @@ export default function AgroVendasPage() {
   // Load All Suppliers
   const loadSuppliers = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/fornecedores`)
+      const res = await apiCall(`/fornecedores`)
       if (res.ok) {
         const data = await res.json()
         setSuppliers(data)
@@ -201,20 +199,20 @@ export default function AgroVendasPage() {
 
   const loadCustomers = useCallback(async (search = "") => {
     try {
-      const res = await fetch(`${API_BASE}/clientes${search ? `?busca=${encodeURIComponent(search)}` : ""}`)
+      const res = await apiCall(`/clientes${search ? `?busca=${encodeURIComponent(search)}` : ""}`)
       if (res.ok) setCustomers(await res.json())
     } catch (e) { console.error("Erro ao buscar clientes:", e) }
   }, [])
 
   const loadCustomerDetails = async (id: number) => {
-    const res = await fetch(`${API_BASE}/clientes/${id}`)
+    const res = await apiCall(`/clientes/${id}`)
     if (res.ok) setCustomerDetails(await res.json())
   }
 
   // Load Deliveries for specific supplier
   const loadSupplierDeliveries = useCallback(async (supplierId: number) => {
     try {
-      const res = await fetch(`${API_BASE}/fornecedores/${supplierId}/entregas`)
+      const res = await apiCall(`/fornecedores/${supplierId}/entregas`)
       if (res.ok) {
         const data = await res.json()
         setSupplierDeliveries((prev) => ({
@@ -331,9 +329,8 @@ export default function AgroVendasPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/vendas`, {
+      const res = await apiCall(`/vendas`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
 
@@ -364,7 +361,7 @@ export default function AgroVendasPage() {
   const handleQuickCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!quickCustomerForm.nome.trim()) return
-    const res = await fetch(`${API_BASE}/clientes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(quickCustomerForm) })
+    const res = await apiCall(`/clientes`, { method: "POST", body: JSON.stringify(quickCustomerForm) })
     if (!res.ok) { alert("Não foi possível cadastrar o cliente."); return }
     const customer: Customer = await res.json()
     selectSaleCustomer(customer)
@@ -376,14 +373,14 @@ export default function AgroVendasPage() {
   const saveCustomer = async (customer: Customer, e: React.FormEvent) => {
     e.preventDefault()
     const method = customer.id ? "PUT" : "POST"
-    const url = customer.id ? `${API_BASE}/clientes/${customer.id}` : `${API_BASE}/clientes`
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(customer) })
+    const url = customer.id ? `/clientes/${customer.id}` : `/clientes`
+    const res = await apiCall(url, { method, body: JSON.stringify(customer) })
     if (res.ok) { setSelectedCustomer(null); loadCustomers(customerSearch) } else alert("Erro ao salvar cliente.")
   }
 
   const deleteCustomer = async (id: number) => {
     if (!confirm("Excluir este cliente? As vendas permanecerão registradas, mas sem vínculo ao cadastro.")) return
-    const res = await fetch(`${API_BASE}/clientes/${id}`, { method: "DELETE" })
+    const res = await apiCall(`/clientes/${id}`, { method: "DELETE" })
     if (res.ok) { setCustomerDetails(null); loadCustomers(customerSearch) }
   }
 
@@ -504,7 +501,7 @@ export default function AgroVendasPage() {
   const handleDeleteSale = async (id: number) => {
     if (!confirm("Tem certeza que deseja excluir esta venda?")) return
     try {
-      const res = await fetch(`${API_BASE}/vendas/${id}`, {
+      const res = await apiCall(`/vendas/${id}`, {
         method: "DELETE",
       })
       if (res.ok) {
@@ -540,12 +537,11 @@ export default function AgroVendasPage() {
     }
 
     const method = editingSupplier ? "PUT" : "POST"
-    const url = editingSupplier ? `${API_BASE}/fornecedores/${editingSupplier.id}` : `${API_BASE}/fornecedores`
+    const url = editingSupplier ? `/fornecedores/${editingSupplier.id}` : `/fornecedores`
 
     try {
-      const res = await fetch(url, {
+      const res = await apiCall(url, {
         method,
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(supplierFormData),
       })
 
@@ -564,7 +560,7 @@ export default function AgroVendasPage() {
     e.stopPropagation()
     if (!confirm("Tem certeza que deseja excluir este fornecedor? Todas as entregas associadas serão removidas.")) return
     try {
-      const res = await fetch(`${API_BASE}/fornecedores/${id}`, {
+      const res = await apiCall(`/fornecedores/${id}`, {
         method: "DELETE",
       })
       if (res.ok) {
@@ -645,9 +641,8 @@ export default function AgroVendasPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/fornecedores/${selectedSupplier.id}/entregas`, {
+      const res = await apiCall(`/fornecedores/${selectedSupplier.id}/entregas`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
 
@@ -667,7 +662,7 @@ export default function AgroVendasPage() {
     e.stopPropagation()
     if (!confirm("Excluir esta entrega?")) return
     try {
-      const res = await fetch(`${API_BASE}/entregas/${deliveryId}`, {
+      const res = await apiCall(`/entregas/${deliveryId}`, {
         method: "DELETE",
       })
       if (res.ok) {
@@ -703,9 +698,8 @@ export default function AgroVendasPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/vendas`, {
+      const res = await apiCall(`/vendas`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedSale),
       })
 
