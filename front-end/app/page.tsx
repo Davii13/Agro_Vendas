@@ -17,7 +17,6 @@ import {
   TrendingUp,
   Trash2,
   BarChart3,
-  Warehouse,
   UserCircle,
   Edit,
   ChevronDown,
@@ -34,6 +33,7 @@ import {
   Printer,
   Download,
   FileDown,
+  Menu,
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import { apiCall } from "@/lib/api"
@@ -92,6 +92,9 @@ export default function AgroVendasPage() {
   // Date and Section State
   const [selectedDate, setSelectedDate] = useState("")
   const [activeSection, setActiveSection] = useState("vendas")
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [statsOpenMobile, setStatsOpenMobile] = useState(false)
+  const [boxStatsOpenMobile, setBoxStatsOpenMobile] = useState(false)
 
   // Core Data Lists
   const [sales, setSales] = useState<Sale[]>([])
@@ -820,20 +823,58 @@ export default function AgroVendasPage() {
 
   const { user } = useAuth()
 
+  const navItems: { key: string; label: string; icon: typeof BarChart3; onClick: () => void }[] = [
+    { key: "vendas", label: "Planilha de Vendas", icon: BarChart3, onClick: () => setActiveSection("vendas") },
+    { key: "fornecedores", label: "Gestão de Entregas", icon: Truck, onClick: () => setActiveSection("fornecedores") },
+    { key: "clientes", label: "Clientes", icon: Users, onClick: () => { setActiveSection("clientes"); loadCustomers() } },
+    { key: "estoque", label: "Estoque & Comparativo", icon: Layers, onClick: () => setActiveSection("estoque") },
+    { key: "caixas", label: "Controle de Caixas 6424", icon: Package, onClick: () => setActiveSection("caixas") },
+  ]
+
+  const sectionTitle: Record<string, string> = {
+    vendas: "Planilha de Vendas Diárias",
+    fornecedores: "Gestão de Entregas & Produtores",
+    clientes: "Cadastro de Clientes",
+    estoque: "Estoque Consolidado do Dia",
+    caixas: "Gestão de Caixas 6424",
+  }
+
   return (
     <ProtectedRoute>
       <div className="flex min-h-screen bg-slate-50 text-slate-800 font-sans">
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden
+          />
+        )}
+
         {/* Sidebar Dashboard Navigation */}
-        <aside className="w-68 bg-gradient-to-b from-emerald-900 via-green-950 to-emerald-950 text-white p-6 flex flex-col shadow-2xl shrink-0">
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-72 overflow-x-hidden bg-gradient-to-b from-emerald-900 via-green-950 to-emerald-950 text-white p-6 flex flex-col shadow-2xl shrink-0 transition-transform duration-300 lg:static lg:z-auto lg:w-68 lg:translate-x-0 ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
           <div className="mb-10 pb-4 border-b border-emerald-800/60">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
-                <Warehouse className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/95 p-1.5 shadow-lg shadow-black/20">
+                  <img src="/logo.png" alt="" className="h-full w-full object-contain" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight">AgroVendas</h1>
+                  <p className="text-emerald-300 text-xs font-semibold tracking-wider uppercase">CEASA Hortifruti</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight">AgroVendas</h1>
-                <p className="text-emerald-300 text-xs font-semibold tracking-wider uppercase">CEASA Hortifruti</p>
-              </div>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden text-emerald-200 hover:text-white p-1"
+                aria-label="Fechar menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           </div>
 
@@ -842,66 +883,21 @@ export default function AgroVendasPage() {
             <p className="text-emerald-300 text-xs">{user?.email}</p>
           </div>
 
-        <nav className="space-y-2 flex-1">
-          <button
-            onClick={() => setActiveSection("vendas")}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-              activeSection === "vendas"
-                ? "bg-white text-emerald-900 shadow-md shadow-emerald-900/10 font-bold scale-[1.02]"
-                : "text-emerald-100 hover:bg-emerald-800/40 hover:text-white"
-            }`}
-          >
-            <BarChart3 className="w-5 h-5" />
-            <span>Planilha de Vendas</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSection("fornecedores")}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-              activeSection === "fornecedores"
-                ? "bg-white text-emerald-900 shadow-md shadow-emerald-900/10 font-bold scale-[1.02]"
-                : "text-emerald-100 hover:bg-emerald-800/40 hover:text-white"
-            }`}
-          >
-            <Truck className="w-5 h-5" />
-            <span>Gestão de Entregas</span>
-          </button>
-
-          <button
-            onClick={() => { setActiveSection("clientes"); loadCustomers() }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-              activeSection === "clientes"
-                ? "bg-white text-emerald-900 shadow-md shadow-emerald-900/10 font-bold scale-[1.02]"
-                : "text-emerald-100 hover:bg-emerald-800/40 hover:text-white"
-            }`}
-          >
-            <Users className="w-5 h-5" />
-            <span>Clientes</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSection("estoque")}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-              activeSection === "estoque"
-                ? "bg-white text-emerald-900 shadow-md shadow-emerald-900/10 font-bold scale-[1.02]"
-                : "text-emerald-100 hover:bg-emerald-800/40 hover:text-white"
-            }`}
-          >
-            <Layers className="w-5 h-5" />
-            <span>Estoque & Comparativo</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSection("caixas")}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
-              activeSection === "caixas"
-                ? "bg-white text-emerald-900 shadow-md shadow-emerald-900/10 font-bold scale-[1.02]"
-                : "text-emerald-100 hover:bg-emerald-800/40 hover:text-white"
-            }`}
-          >
-            <Package className="w-5 h-5" />
-            <span>Controle de Caixas 6424</span>
-          </button>
+        <nav className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden">
+          {navItems.map(({ key, label, icon: Icon, onClick }) => (
+            <button
+              key={key}
+              onClick={() => { onClick(); setSidebarOpen(false) }}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 text-left ${
+                activeSection === key
+                  ? "bg-white text-emerald-900 shadow-md shadow-emerald-900/10 font-bold scale-[1.02]"
+                  : "text-emerald-100 hover:bg-emerald-800/40 hover:text-white"
+              }`}
+            >
+              <Icon className="w-5 h-5 shrink-0" />
+              <span className="leading-tight">{label}</span>
+            </button>
+          ))}
         </nav>
 
         {/* Global Connection Badge */}
@@ -915,25 +911,37 @@ export default function AgroVendasPage() {
       </aside>
 
       {/* Main Container Content */}
-      <main className="flex-1 overflow-y-auto p-8 lg:p-12">
-        <div className="max-w-7xl mx-auto space-y-8">
-          
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-12">
+        <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8">
+
+          {/* Mobile top bar: menu trigger + brand */}
+          <div className="flex items-center justify-between lg:hidden -mb-2">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm text-slate-700 font-semibold text-sm"
+              aria-label="Abrir menu"
+            >
+              <Menu className="w-4 h-4" />
+              Menu
+            </button>
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="AgroVendas" className="h-7 w-7 object-contain" />
+              <span className="font-bold text-emerald-950 text-sm">AgroVendas</span>
+            </div>
+          </div>
+
           {/* Top Bar Header with Date Input */}
           <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
             <div>
               <span className="text-emerald-600 font-bold text-xs uppercase tracking-widest">Painel AgroVendas</span>
-              <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                {activeSection === "vendas" && "Planilha de Vendas Diárias"}
-                {activeSection === "fornecedores" && "Gestão de Entregas & Produtores"}
-                {activeSection === "clientes" && "Cadastro de Clientes"}
-                {activeSection === "estoque" && "Estoque Consolidado do Dia"}
-                {activeSection === "caixas" && "Gestão de Caixas 6424"}
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                {sectionTitle[activeSection]}
               </h2>
             </div>
-            
-            <div className="flex items-center gap-3 bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 shrink-0">
-              <Calendar className="w-4 h-4 text-emerald-600" />
-              <Label htmlFor="global-date" className="text-xs font-bold text-slate-500 uppercase">Data Geral:</Label>
+
+            <div className="flex items-center gap-3 bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 shrink-0 self-start md:self-auto">
+              <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+              <Label htmlFor="global-date" className="text-xs font-bold text-slate-500 uppercase whitespace-nowrap">Data Geral:</Label>
               <input
                 id="global-date"
                 type="date"
@@ -945,7 +953,7 @@ export default function AgroVendasPage() {
                     loadSupplierDeliveries(expandedSupplier)
                   }
                 }}
-                className="text-sm font-semibold border-none text-slate-700 focus:outline-none focus:ring-0 bg-transparent"
+                className="text-sm font-semibold border-none text-slate-700 focus:outline-none focus:ring-0 bg-transparent min-w-0"
               />
             </div>
           </header>
@@ -955,8 +963,19 @@ export default function AgroVendasPage() {
             <div className="space-y-8">
               
               {/* Dashboard Indicator Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-l-4 border-l-emerald-500">
+              <button
+                onClick={() => setStatsOpenMobile((v) => !v)}
+                className="md:hidden w-full flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm text-sm font-bold text-slate-700"
+              >
+                <span className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-emerald-600" />
+                  Indicadores do dia
+                </span>
+                {statsOpenMobile ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </button>
+
+              <div className={`grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 ${statsOpenMobile ? "grid" : "hidden md:grid"}`}>
+                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-emerald-500">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
                       <span>Vendas Feitas</span>
@@ -969,7 +988,7 @@ export default function AgroVendasPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-l-4 border-l-green-500">
+                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-green-500">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
                       <span>Vendas Liquidadas</span>
@@ -982,7 +1001,7 @@ export default function AgroVendasPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-l-4 border-l-rose-500">
+                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-rose-500">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
                       <span>Vendas em Aberto</span>
@@ -995,7 +1014,7 @@ export default function AgroVendasPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-l-4 border-l-emerald-600">
+                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-emerald-600">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
                       <span>Volume de Vendas</span>
@@ -1016,25 +1035,112 @@ export default function AgroVendasPage() {
                     <CardTitle className="text-lg font-bold text-emerald-950">Planilha do Dia</CardTitle>
                     <p className="text-xs text-slate-500 mt-0.5">Vendas lançadas para {selectedDate ? new Date(selectedDate + "T00:00:00").toLocaleDateString("pt-BR") : ""}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full md:w-auto">
                     <Button
                       onClick={exportSalesToExcel}
                       variant="outline"
-                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold"
+                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold flex-1 md:flex-none"
                     >
-                      <FileDown className="w-4 h-4 mr-2" /> Exportar Excel
+                      <FileDown className="w-4 h-4 mr-2 shrink-0" /> <span className="truncate">Exportar Excel</span>
                     </Button>
                     <Button
                       onClick={openNewSaleModal}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl flex-1 md:flex-none"
                     >
-                      <Plus className="w-4 h-4 mr-2" /> Nova Venda
+                      <Plus className="w-4 h-4 mr-2 shrink-0" /> Nova Venda
                     </Button>
                   </div>
                 </CardHeader>
                 
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto">
+                  {/* Mobile: stacked cards */}
+                  <div className="md:hidden divide-y divide-slate-100">
+                    {sales.map((sale) => {
+                      const totalBoxes = sale.mercadorias.reduce((s, m) => s + m.qtde, 0)
+                      return (
+                        <div key={sale.id} className="p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-900">{sale.cliente}</p>
+                              <span className="inline-block mt-1 px-2 py-0.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                                {sale.modeloCaixa}
+                              </span>
+                            </div>
+                            <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getPaymentBadge(sale.pagamentoVerduras)}`}>
+                              {sale.pagamentoVerduras === "Parcial" ? `Parcial (R$ ${sale.valorPago.toFixed(2)})` : sale.pagamentoVerduras}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 rounded-lg bg-slate-50/70 p-3">
+                            {sale.mercadorias.map((m, idx) => (
+                              <div key={idx} className="text-xs flex items-center gap-1.5 text-slate-600">
+                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
+                                <span className="font-semibold text-slate-800">{m.nome}</span>: {m.qtde} caixas × R$ {m.valor.toFixed(2)}
+                              </div>
+                            ))}
+                            <div className="text-xs font-bold text-slate-800 pt-1">Total: {totalBoxes} caixas</div>
+                          </div>
+
+                          {sale.modeloCaixa !== "Papelão" && (
+                            <div className="text-xs">
+                              <span className="font-semibold text-slate-600">{sale.caixasPagasVale} de {sale.qtdeCaixas6424} caixas 6424 pagas</span>
+                              {sale.caixasDevendoVale > 0 ? (
+                                <span className="text-rose-600 font-bold flex items-center gap-1 mt-1">
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  Devendo {sale.caixasDevendoVale} caixas
+                                </span>
+                              ) : (
+                                <span className="text-emerald-600 font-bold flex items-center gap-1 mt-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  Tudo devolvido
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 pt-1">
+                            {sale.caixasDevendoVale > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openReturnBoxModal(sale)}
+                                className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 h-9 flex-1"
+                              >
+                                Devolver Vales
+                              </Button>
+                            )}
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              onClick={() => openEditSaleModal(sale)}
+                              className="border-slate-200 hover:text-emerald-700 h-9 w-9 rounded-lg shrink-0"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              onClick={() => handleDeleteSale(sale.id!)}
+                              className="h-9 w-9 rounded-lg shrink-0"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {sales.length === 0 && (
+                      <div className="text-center py-16 text-slate-400 bg-white">
+                        <Package className="w-12 h-12 mx-auto mb-3 opacity-40 text-slate-400" />
+                        <p className="font-semibold text-sm">Nenhuma venda registrada nesta data.</p>
+                        <p className="text-xs text-slate-400 mt-1">Toque em "Nova Venda" para começar a registrar.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Desktop: table */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50/80 text-slate-500 font-bold border-b border-slate-100">
                         <tr>
@@ -1173,7 +1279,7 @@ export default function AgroVendasPage() {
                       <CardTitle>Histórico de {customerDetails.cliente.nome}</CardTitle>
                       <p className="text-sm text-slate-500 mt-1">{customerDetails.cliente.telefone || ""} {customerDetails.cliente.email ? `• ${customerDetails.cliente.email}` : ""}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
                         variant="outline"
@@ -1219,15 +1325,15 @@ export default function AgroVendasPage() {
           {activeSection === "fornecedores" && (
             <div className="space-y-8">
               
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">Produtores Cadastrados</h3>
                   <p className="text-sm text-slate-500 mt-0.5">Gerencie os fornecedores rurais e registre suas entregas de mercadorias no CEASA.</p>
                 </div>
-                
+
                 <Button
                   onClick={openNewSupplierModal}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl self-start sm:self-auto"
                 >
                   <Plus className="w-4 h-4 mr-2" /> + Cadastrar Produtor
                 </Button>
@@ -1246,14 +1352,14 @@ export default function AgroVendasPage() {
                       {/* Supplier Card Header */}
                       <div
                         onClick={() => toggleSupplier(supplier.id)}
-                        className="p-6 bg-gradient-to-r from-white to-slate-50/50 hover:bg-slate-50 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors border-b border-slate-100"
+                        className="p-4 sm:p-6 bg-gradient-to-r from-white to-slate-50/50 hover:bg-slate-50 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors border-b border-slate-100"
                       >
                         <div className="flex items-center gap-4">
-                          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 shrink-0">
                             <UserCircle className="w-6 h-6 text-emerald-700" />
                           </div>
-                          <div>
-                            <h4 className="text-lg font-bold text-slate-900">{supplier.nome}</h4>
+                          <div className="min-w-0">
+                            <h4 className="text-lg font-bold text-slate-900 truncate">{supplier.nome}</h4>
                             <p className="text-xs text-slate-500 font-semibold flex items-center gap-1.5 mt-0.5">
                               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                               Local CEASA: <span className="text-slate-700 font-bold">{supplier.areaCeasa}</span>
@@ -1261,10 +1367,10 @@ export default function AgroVendasPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 self-end md:self-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-stretch md:self-center" onClick={(e) => e.stopPropagation()}>
                           <Button
                             size="sm"
-                            className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 h-9 rounded-xl font-bold"
+                            className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 h-9 rounded-xl font-bold flex-1 md:flex-none"
                             onClick={(e) => openNewDeliveryModal(supplier, e)}
                           >
                             + Lançar Entrega
@@ -1272,7 +1378,7 @@ export default function AgroVendasPage() {
                           <Button
                             size="icon"
                             variant="outline"
-                            className="border-slate-200 h-9 w-9 rounded-lg"
+                            className="border-slate-200 h-9 w-9 rounded-lg shrink-0"
                             onClick={(e) => openEditSupplierModal(supplier, e)}
                           >
                             <Edit className="w-4 h-4 text-slate-600" />
@@ -1280,7 +1386,7 @@ export default function AgroVendasPage() {
                           <Button
                             size="icon"
                             variant="destructive"
-                            className="h-9 w-9 rounded-lg"
+                            className="h-9 w-9 rounded-lg shrink-0"
                             onClick={(e) => handleDeleteSupplier(supplier.id, e)}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1288,7 +1394,7 @@ export default function AgroVendasPage() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-9 w-9 text-slate-400 hover:text-slate-600"
+                            className="h-9 w-9 text-slate-400 hover:text-slate-600 shrink-0"
                             onClick={() => toggleSupplier(supplier.id)}
                           >
                             {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -1298,13 +1404,13 @@ export default function AgroVendasPage() {
 
                       {/* Expanded Lieferungen history */}
                       {isExpanded && (
-                        <div className="bg-slate-50/50 p-6 border-t border-slate-100">
-                          <div className="flex items-center justify-between mb-4">
+                        <div className="bg-slate-50/50 p-4 sm:p-6 border-t border-slate-100">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                             <h5 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
                               <Truck className="w-4 h-4 text-emerald-600" /> Histórico de Entregas
                             </h5>
-                            
-                            <div className="flex items-center gap-6 text-xs font-bold text-slate-500">
+
+                            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs font-bold text-slate-500">
                               <div>
                                 Caixas 6424 Entregues: <span className="text-emerald-700 font-extrabold">{totals.total6424}</span>
                               </div>
@@ -1314,15 +1420,15 @@ export default function AgroVendasPage() {
                             </div>
                           </div>
 
-                          <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-white">
+                          <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
                             <table className="w-full text-xs text-slate-600">
                               <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
                                 <tr>
-                                  <th className="px-6 py-3 text-left">Data de Recebimento</th>
-                                  <th className="px-6 py-3 text-left">Mercadoria Hortifruti</th>
-                                  <th className="px-6 py-3 text-center">Caixas 6424</th>
-                                  <th className="px-6 py-3 text-center">Caixas Papelão</th>
-                                  <th className="px-6 py-3 text-center">Ações</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left">Data de Recebimento</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left">Mercadoria Hortifruti</th>
+                                  <th className="px-3 sm:px-6 py-3 text-center">Caixas 6424</th>
+                                  <th className="px-3 sm:px-6 py-3 text-center">Caixas Papelão</th>
+                                  <th className="px-3 sm:px-6 py-3 text-center">Ações</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-150">
@@ -1532,8 +1638,19 @@ export default function AgroVendasPage() {
             <div className="space-y-8">
               
               {/* Box Logistics Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="border-l-4 border-l-emerald-600 bg-white">
+              <button
+                onClick={() => setBoxStatsOpenMobile((v) => !v)}
+                className="md:hidden w-full flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm text-sm font-bold text-slate-700"
+              >
+                <span className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-600" />
+                  Indicadores de caixas
+                </span>
+                {boxStatsOpenMobile ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </button>
+
+              <div className={`grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 ${boxStatsOpenMobile ? "grid" : "hidden md:grid"}`}>
+                <Card className="border-t-2 border-t-emerald-600 bg-white">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                       Total Caixas 6424 Recebidas
@@ -1545,7 +1662,7 @@ export default function AgroVendasPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-rose-500 bg-white">
+                <Card className="border-t-2 border-t-rose-500 bg-white">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                       Caixas Devendo (Clientes)
@@ -1557,7 +1674,7 @@ export default function AgroVendasPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-green-500 bg-white">
+                <Card className="border-t-2 border-t-green-500 bg-white">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                       Caixas Pagas/Vale
@@ -1708,8 +1825,8 @@ export default function AgroVendasPage() {
               <div className="space-y-3">
                 {saleProducts.map((prod, idx) => (
                   <Card key={idx} className="border border-green-100 shadow-sm bg-slate-50/50">
-                    <CardContent className="p-4 flex gap-3 items-end">
-                      <div className="flex-1 grid grid-cols-3 gap-3">
+                    <CardContent className="p-4 flex flex-col sm:flex-row gap-3 sm:items-end">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-slate-500">Mercadoria</Label>
                           <Input
@@ -1749,7 +1866,7 @@ export default function AgroVendasPage() {
                         size="icon"
                         onClick={() => removeSaleProductItem(idx)}
                         disabled={saleProducts.length <= 1}
-                        className="h-9 w-9"
+                        className="h-9 w-9 self-end sm:self-auto shrink-0"
                       >
                         <X className="w-4 h-4" />
                       </Button>

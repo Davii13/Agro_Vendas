@@ -12,7 +12,7 @@ export interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, senha: string) => Promise<void>
+  login: (email: string, senha: string, manterConectado?: boolean) => Promise<void>
   logout: () => Promise<void>
   refreshToken: () => Promise<boolean>
 }
@@ -55,14 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
-  const login = useCallback(async (email: string, senha: string) => {
+  const login = useCallback(async (email: string, senha: string, manterConectado = false) => {
     try {
       const response = await fetch('http://localhost:8080/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, senha }),
+        body: JSON.stringify({ email, senha, manterConectado }),
       })
 
       if (!response.ok) {

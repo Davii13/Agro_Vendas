@@ -25,6 +25,9 @@ public class TokenService {
     @Value("${jwt.expiration.refresh:604800}")
     private long refreshTokenExpiration;
 
+    @Value("${jwt.expiration.refresh.extended:2592000}")
+    private long refreshTokenExpirationExtended;
+
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
@@ -37,11 +40,12 @@ public class TokenService {
         return criarToken(claims, usuario.getId().toString(), accessTokenExpiration);
     }
 
-    public String gerarRefreshToken(Usuario usuario) {
+    public String gerarRefreshToken(Usuario usuario, boolean manterConectado) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("tipo", "refresh");
 
-        return criarToken(claims, usuario.getId().toString(), refreshTokenExpiration);
+        long expiration = manterConectado ? refreshTokenExpirationExtended : refreshTokenExpiration;
+        return criarToken(claims, usuario.getId().toString(), expiration);
     }
 
     private String criarToken(Map<String, Object> claims, String subject, long expirationSeconds) {
@@ -87,8 +91,9 @@ public class TokenService {
                 .getPayload();
     }
 
-    public LocalDateTime obterDataExpiracaoRefreshToken() {
-        return LocalDateTime.now().plusSeconds(refreshTokenExpiration);
+    public LocalDateTime obterDataExpiracaoRefreshToken(boolean manterConectado) {
+        long expiration = manterConectado ? refreshTokenExpirationExtended : refreshTokenExpiration;
+        return LocalDateTime.now().plusSeconds(expiration);
     }
 
     public long obterExpiracaoAccessTokenEmSegundos() {

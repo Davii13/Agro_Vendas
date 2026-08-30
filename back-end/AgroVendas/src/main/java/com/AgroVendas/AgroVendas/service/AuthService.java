@@ -73,12 +73,12 @@ public class AuthService {
         logger.info("Login bem-sucedido para: {}", email);
 
         String accessToken = tokenService.gerarAccessToken(usuario);
-        String refreshTokenStr = tokenService.gerarRefreshToken(usuario);
+        String refreshTokenStr = tokenService.gerarRefreshToken(usuario, request.isManterConectado());
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUsuario(usuario);
         refreshToken.setTokenHash(hashToken(refreshTokenStr));
-        refreshToken.setDataExpiracao(tokenService.obterDataExpiracaoRefreshToken());
+        refreshToken.setDataExpiracao(tokenService.obterDataExpiracaoRefreshToken(request.isManterConectado()));
         refreshTokenRepository.save(refreshToken);
 
         return new AuthResponseDTO(
