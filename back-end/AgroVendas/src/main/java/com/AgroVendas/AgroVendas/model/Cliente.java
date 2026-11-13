@@ -22,7 +22,7 @@ public class Cliente {
     private String cpfCnpj;
 
     @Column(length = 150)
-    private String email;
+    private String localizacao;
 
     @Column(columnDefinition = "TEXT")
     private String observacoes;

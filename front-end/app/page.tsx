@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LogoutButton } from "@/components/LogoutButton"
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog"
+import { gerarHistoricoClienteHtml } from "@/lib/customerHistoryHtml"
 import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,6 +36,8 @@ import {
   Download,
   FileDown,
   Menu,
+  Apple,
+  MinusCircle,
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import { apiCall } from "@/lib/api"
@@ -64,7 +68,7 @@ type Customer = {
   nome: string
   telefone?: string | null
   cpfCnpj?: string | null
-  email?: string | null
+  localizacao?: string | null
   observacoes?: string | null
 }
 
@@ -79,13 +83,135 @@ type DeliveryProduct = {
 type Delivery = {
   id?: number
   data: string
+  valorTotal?: number
+  valorPago?: number
+  valesPagos?: number
   mercadorias: DeliveryProduct[]
+}
+
+type Merchandise = {
+  id: number
+  nome: string
 }
 
 type Supplier = {
   id: number
   nome: string
   areaCeasa: string
+}
+
+const brl = (n: number) =>
+  (Number.isFinite(n) ? n : 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+
+// The server explains why it refused something (invalid value, unknown product...). Show that, not a generic error.
+async function mensagemDoServidor(res: Response, padrao: string): Promise<string> {
+  const corpo = await res.json().catch(() => null)
+  return corpo?.erro || padrao
+}
+
+const saleTotal = (sale: Sale) => sale.mercadorias.reduce((sum, m) => sum + m.qtde * m.valor, 0)
+
+// State is always text plus icon, never color alone.
+function PaymentStatus({ sale }: { sale: Sale }) {
+  if (sale.pagamentoVerduras === "Pago") {
+    return (
+      <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
+        <CheckCircle2 className="h-4 w-4" aria-hidden /> Pago
+      </span>
+    )
+  }
+  if (sale.pagamentoVerduras === "Parcial") {
+    return (
+      <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700">
+        <MinusCircle className="h-4 w-4" aria-hidden /> Parcial
+        <span className="tabular-nums font-medium">{brl(sale.valorPago)}</span>
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 font-semibold text-red-700">
+      <AlertCircle className="h-4 w-4" aria-hidden /> Devendo
+    </span>
+  )
+}
+
+function BoxVale({ sale, showModel = false, onReturn }: { sale: Sale; showModel?: boolean; onReturn?: () => void }) {
+  if (sale.modeloCaixa === "Papelão") {
+    return showModel ? <p className="text-slate-700">Caixa Papelão</p> : <span className="text-slate-400">&ndash;</span>
+  }
+  return (
+    <div>
+      {showModel && <p className="font-medium text-slate-900">Caixa {sale.modeloCaixa}</p>}
+      <p className="text-slate-700">
+        <span className="tabular-nums font-medium">{sale.caixasPagasVale}</span> de{" "}
+        <span className="tabular-nums font-medium">{sale.qtdeCaixas6424}</span> pagas
+      </p>
+      {sale.caixasDevendoVale > 0 ? (
+        <p className="mt-0.5 flex items-center gap-1.5 font-semibold text-red-700">
+          <AlertCircle className="h-4 w-4" aria-hidden /> Devendo {sale.caixasDevendoVale}
+        </p>
+      ) : (
+        <p className="mt-0.5 flex items-center gap-1.5 font-semibold text-emerald-700">
+          <CheckCircle2 className="h-4 w-4" aria-hidden /> Tudo devolvido
+        </p>
+      )}
+      {onReturn && sale.caixasDevendoVale > 0 && (
+        <Button variant="outline" size="sm" onClick={onReturn} className="mt-2">
+          Devolver vales
+        </Button>
+      )}
+    </div>
+  )
+}
+
+const deliveryVales = (d: Delivery) => d.mercadorias.reduce((s, m) => s + m.quantidadeCaixa6424, 0)
+
+// Money and vales owed to a producer: text and icon carry the state, color only reinforces it.
+function DeliveryPayment({ delivery }: { delivery: Delivery }) {
+  const total = delivery.valorTotal || 0
+  const pago = delivery.valorPago || 0
+  const vales = deliveryVales(delivery)
+  const valesPagos = delivery.valesPagos || 0
+  const dinheiroOk = total > 0 && pago >= total
+  const valesOk = vales === 0 || valesPagos >= vales
+  const quitado = dinheiroOk && valesOk
+  const Mark = ({ ok }: { ok: boolean }) =>
+    ok ? (
+      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden />
+    ) : (
+      <AlertCircle className="h-4 w-4 shrink-0 text-red-700" aria-hidden />
+    )
+  return (
+    <div className="space-y-1">
+      <p className="flex items-center gap-1.5">
+        <Mark ok={dinheiroOk} />
+        <span className="font-semibold tabular-nums text-slate-900">{brl(pago)}</span>
+        <span className="text-slate-600">de {brl(total)}</span>
+      </p>
+      <p className="flex items-center gap-1.5">
+        <Mark ok={valesOk} />
+        <span className="font-semibold tabular-nums text-slate-900">{valesPagos}</span>
+        <span className="text-slate-600">de {vales} vales de caixa</span>
+      </p>
+      <p className={`font-semibold ${quitado ? "text-emerald-700" : "text-red-700"}`}>{quitado ? "Quitado" : "Pendente"}</p>
+    </div>
+  )
+}
+
+function DeliveryItems({ delivery }: { delivery: Delivery }) {
+  return (
+    <ul className="space-y-1">
+      {delivery.mercadorias.map((m, idx) => (
+        <li key={idx} className="text-slate-700">
+          <span className="font-medium text-slate-900">{m.nomeMercadoria}</span>
+          <span className="whitespace-nowrap text-slate-600">
+            {" "}&middot; {m.quantidadeCaixa6424} cx 6424
+            {m.quantidadePapelao > 0 ? ` · ${m.quantidadePapelao} papelão` : ""}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 export default function AgroVendasPage() {
@@ -131,7 +257,7 @@ export default function AgroVendasPage() {
   })
   const [saleCustomerQuery, setSaleCustomerQuery] = useState("")
   const [saleCustomerId, setSaleCustomerId] = useState<number | null>(null)
-  const [quickCustomerForm, setQuickCustomerForm] = useState({ nome: "", telefone: "", cpfCnpj: "", email: "", observacoes: "" })
+  const [quickCustomerForm, setQuickCustomerForm] = useState({ nome: "", telefone: "", cpfCnpj: "", localizacao: "", observacoes: "" })
   const [saleProducts, setSaleProducts] = useState<ProductItem[]>([])
 
   const [supplierFormData, setSupplierFormData] = useState({
@@ -141,6 +267,13 @@ export default function AgroVendasPage() {
 
   const [deliveryProducts, setDeliveryProducts] = useState<DeliveryProduct[]>([])
   const [deliveryDate, setDeliveryDate] = useState("")
+  const [merchandises, setMerchandises] = useState<Merchandise[]>([])
+  const [merchandiseModalOpen, setMerchandiseModalOpen] = useState(false)
+  const [editingMerchandise, setEditingMerchandise] = useState<Merchandise | null>(null)
+  const [merchandiseName, setMerchandiseName] = useState("")
+  const [deliveryValorTotal, setDeliveryValorTotal] = useState("")
+  const [deliveryValorPago, setDeliveryValorPago] = useState("")
+  const [deliveryValesPagos, setDeliveryValesPagos] = useState("")
 
   // Quick action states
   const [returnBoxModalOpen, setReturnBoxModalOpen] = useState(false)
@@ -200,6 +333,15 @@ export default function AgroVendasPage() {
     }
   }, [])
 
+  const loadMerchandises = useCallback(async () => {
+    try {
+      const res = await apiCall(`/mercadorias`)
+      if (res.ok) setMerchandises(await res.json())
+    } catch (e) {
+      console.error("Erro de conexão ao buscar mercadorias:", e)
+    }
+  }, [])
+
   const loadCustomers = useCallback(async (search = "") => {
     try {
       const res = await apiCall(`/clientes${search ? `?busca=${encodeURIComponent(search)}` : ""}`)
@@ -235,8 +377,9 @@ export default function AgroVendasPage() {
     }
     loadSuppliers()
     loadCustomers()
+    loadMerchandises()
     loadAllSales()
-  }, [selectedDate, loadSales, loadSuppliers, loadCustomers, loadAllSales])
+  }, [selectedDate, loadSales, loadSuppliers, loadCustomers, loadMerchandises, loadAllSales])
 
   // Load deliveries for expanded suppliers
   useEffect(() => {
@@ -341,7 +484,7 @@ export default function AgroVendasPage() {
         setSaleModalOpen(false)
         loadSales(selectedDate)
       } else {
-        alert("Erro ao salvar a venda.")
+        alert(await mensagemDoServidor(res, "Erro ao salvar a venda."))
       }
     } catch (err) {
       console.error(err)
@@ -369,7 +512,7 @@ export default function AgroVendasPage() {
     const customer: Customer = await res.json()
     selectSaleCustomer(customer)
     setCustomerModalOpen(false)
-    setQuickCustomerForm({ nome: "", telefone: "", cpfCnpj: "", email: "", observacoes: "" })
+    setQuickCustomerForm({ nome: "", telefone: "", cpfCnpj: "", localizacao: "", observacoes: "" })
     loadCustomers()
   }
 
@@ -389,57 +532,7 @@ export default function AgroVendasPage() {
 
   const generateHistoryHTML = () => {
     if (!customerDetails) return ""
-    const totalVendas = customerDetails.vendas.length
-    const totalValor = customerDetails.vendas.reduce((sum, sale) => sum + sale.mercadorias.reduce((total, m) => total + m.qtde * m.valor, 0), 0)
-
-    return `
-      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px;">
-        <h1 style="color: #1e3a1f; text-align: center; margin-bottom: 30px;">Histórico de Compras</h1>
-        <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-          <h2 style="color: #047857; margin: 0 0 10px 0; font-size: 16px;">Cliente: ${customerDetails.cliente.nome}</h2>
-          <p style="margin: 5px 0; font-size: 13px;"><strong>Telefone:</strong> ${customerDetails.cliente.telefone || "N/A"}</p>
-          <p style="margin: 5px 0; font-size: 13px;"><strong>Email:</strong> ${customerDetails.cliente.email || "N/A"}</p>
-          <p style="margin: 5px 0; font-size: 13px;"><strong>Observações:</strong> ${customerDetails.cliente.observacoes || "N/A"}</p>
-        </div>
-        <div style="margin-bottom: 20px;">
-          <h3 style="color: #1e3a1f; border-bottom: 2px solid #047857; padding-bottom: 10px;">Resumo</h3>
-          <p style="font-size: 14px;"><strong>Total de Compras:</strong> ${totalVendas}</p>
-          <p style="font-size: 14px;"><strong>Valor Total:</strong> R$ ${totalValor.toFixed(2)}</p>
-        </div>
-        <div style="margin-top: 20px;">
-          <h3 style="color: #1e3a1f; border-bottom: 2px solid #047857; padding-bottom: 10px;">Detalhes das Compras</h3>
-          ${customerDetails.vendas.map(sale => {
-            const saleTotal = sale.mercadorias.reduce((total, m) => total + m.qtde * m.valor, 0)
-            return `
-              <div style="border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; border-radius: 5px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                  <strong style="color: #1e3a1f;">${new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR")}</strong>
-                  <span style="background: ${sale.pagamentoVerduras === "Pago" ? "#dcfce7" : sale.pagamentoVerduras === "Parcial" ? "#fef3c7" : "#fee2e2"}; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold;">${sale.pagamentoVerduras}</span>
-                </div>
-                <p style="margin: 5px 0; font-size: 13px; color: #555;"><strong>Modelo de Caixa:</strong> ${sale.modeloCaixa}</p>
-                <p style="margin: 5px 0; font-size: 13px; color: #555;">${sale.mercadorias.map(m => `${m.nome} (${m.qtde})`).join(", ")}</p>
-                ${sale.modeloCaixa !== "Papelão" ? `
-                  <div style="background: #f0fdf4; padding: 8px; border-left: 3px solid #047857; margin: 8px 0; border-radius: 3px;">
-                    <p style="margin: 3px 0; font-size: 12px;"><strong>Caixas 6424:</strong> ${sale.qtdeCaixas6424}</p>
-                    <p style="margin: 3px 0; font-size: 12px;"><strong>Pagas (Vale):</strong> ${sale.caixasPagasVale}</p>
-                    <p style="margin: 3px 0; font-size: 12px;"><strong style="color: ${sale.caixasDevendoVale > 0 ? "#dc2626" : "#059669"};">Devendo:</strong> ${sale.caixasDevendoVale}</p>
-                  </div>
-                ` : ""}
-                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 8px;">
-                  <div>
-                    <p style="margin: 5px 0; font-size: 13px; font-weight: bold; color: #047857;">Total: R$ ${saleTotal.toFixed(2)}</p>
-                    ${sale.pagamentoVerduras === "Parcial" ? `<p style="margin: 5px 0; font-size: 12px; color: #666;"><strong>Valor Pago:</strong> R$ ${sale.valorPago.toFixed(2)}</p><p style="margin: 5px 0; font-size: 12px; color: #dc2626;"><strong>Valor Pendente:</strong> R$ ${(saleTotal - sale.valorPago).toFixed(2)}</p>` : ""}
-                  </div>
-                </div>
-              </div>
-            `
-          }).join("")}
-        </div>
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; font-size: 11px; color: #666;">
-          <p>Relatório gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</p>
-        </div>
-      </div>
-    `
+    return gerarHistoricoClienteHtml(customerDetails)
   }
 
   const printCustomerHistory = () => {
@@ -577,6 +670,56 @@ export default function AgroVendasPage() {
     }
   }
 
+  // ================= MERCHANDISE CRUD =================
+
+  const openNewMerchandiseModal = () => {
+    setEditingMerchandise(null)
+    setMerchandiseName("")
+    setMerchandiseModalOpen(true)
+  }
+
+  const openEditMerchandiseModal = (m: Merchandise) => {
+    setEditingMerchandise(m)
+    setMerchandiseName(m.nome)
+    setMerchandiseModalOpen(true)
+  }
+
+  const handleMerchandiseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!merchandiseName.trim()) return
+    const url = editingMerchandise ? `/mercadorias/${editingMerchandise.id}` : `/mercadorias`
+    try {
+      const res = await apiCall(url, {
+        method: editingMerchandise ? "PUT" : "POST",
+        body: JSON.stringify({ nome: merchandiseName.trim() }),
+      })
+      if (res.ok) {
+        setMerchandiseModalOpen(false)
+        loadMerchandises()
+      } else {
+        const body = await res.json().catch(() => null)
+        alert(body?.erro || "Erro ao salvar mercadoria.")
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDeleteMerchandise = async (m: Merchandise) => {
+    if (!confirm(`Excluir a mercadoria "${m.nome}"?`)) return
+    try {
+      const res = await apiCall(`/mercadorias/${m.id}`, { method: "DELETE" })
+      if (res.ok) {
+        loadMerchandises()
+      } else {
+        const body = await res.json().catch(() => null)
+        alert(body?.erro || "Erro ao excluir mercadoria.")
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   // ================= SUPPLIER DELIVERIES OPERATIONS =================
 
   const openNewDeliveryModal = (supplier: Supplier, e: React.MouseEvent) => {
@@ -585,6 +728,9 @@ export default function AgroVendasPage() {
     setEditingDelivery(null)
     setDeliveryDate(selectedDate || new Date().toISOString().split("T")[0])
     setDeliveryProducts([{ nomeMercadoria: "", quantidadeCaixa6424: 0, quantidadePapelao: 0 }])
+    setDeliveryValorTotal("")
+    setDeliveryValorPago("")
+    setDeliveryValesPagos("")
     deliveryModalOpenStateChange(true)
   }
 
@@ -593,6 +739,9 @@ export default function AgroVendasPage() {
     setSelectedSupplier(supplier)
     setEditingDelivery(delivery)
     setDeliveryDate(delivery.data)
+    setDeliveryValorTotal(delivery.valorTotal ? String(delivery.valorTotal) : "")
+    setDeliveryValorPago(delivery.valorPago ? String(delivery.valorPago) : "")
+    setDeliveryValesPagos(delivery.valesPagos ? String(delivery.valesPagos) : "")
     setDeliveryProducts(delivery.mercadorias.map(m => ({
       nomeMercadoria: m.nomeMercadoria,
       quantidadeCaixa6424: m.quantidadeCaixa6424,
@@ -640,6 +789,9 @@ export default function AgroVendasPage() {
     const payload: Delivery = {
       id: editingDelivery?.id || undefined,
       data: deliveryDate,
+      valorTotal: parseFloat(deliveryValorTotal) || 0,
+      valorPago: parseFloat(deliveryValorPago) || 0,
+      valesPagos: parseInt(deliveryValesPagos) || 0,
       mercadorias: deliveryProducts,
     }
 
@@ -654,8 +806,27 @@ export default function AgroVendasPage() {
         loadSupplierDeliveries(selectedSupplier.id)
         refreshAll()
       } else {
-        alert("Erro ao salvar entrega.")
+        alert(await mensagemDoServidor(res, "Erro ao salvar entrega."))
       }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleQuitarDelivery = async (supplier: Supplier, delivery: Delivery, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const payload: Delivery = {
+      ...delivery,
+      valorPago: delivery.valorTotal || 0,
+      valesPagos: delivery.mercadorias.reduce((s, m) => s + m.quantidadeCaixa6424, 0),
+    }
+    try {
+      const res = await apiCall(`/fornecedores/${supplier.id}/entregas`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) loadSupplierDeliveries(supplier.id)
+      else alert(await mensagemDoServidor(res, "Erro ao registrar pagamento."))
     } catch (err) {
       console.error(err)
     }
@@ -711,7 +882,7 @@ export default function AgroVendasPage() {
         loadSales(selectedDate)
         loadAllSales()
       } else {
-        alert("Erro ao registrar devolução.")
+        alert(await mensagemDoServidor(res, "Erro ao registrar devolução."))
       }
     } catch (err) {
       console.error(err)
@@ -826,6 +997,7 @@ export default function AgroVendasPage() {
   const navItems: { key: string; label: string; icon: typeof BarChart3; onClick: () => void }[] = [
     { key: "vendas", label: "Planilha de Vendas", icon: BarChart3, onClick: () => setActiveSection("vendas") },
     { key: "fornecedores", label: "Gestão de Entregas", icon: Truck, onClick: () => setActiveSection("fornecedores") },
+    { key: "mercadorias", label: "Mercadorias", icon: Apple, onClick: () => { setActiveSection("mercadorias"); loadMerchandises() } },
     { key: "clientes", label: "Clientes", icon: Users, onClick: () => { setActiveSection("clientes"); loadCustomers() } },
     { key: "estoque", label: "Estoque & Comparativo", icon: Layers, onClick: () => setActiveSection("estoque") },
     { key: "caixas", label: "Controle de Caixas 6424", icon: Package, onClick: () => setActiveSection("caixas") },
@@ -834,6 +1006,7 @@ export default function AgroVendasPage() {
   const sectionTitle: Record<string, string> = {
     vendas: "Planilha de Vendas Diárias",
     fornecedores: "Gestão de Entregas & Produtores",
+    mercadorias: "Cadastro de Mercadorias",
     clientes: "Cadastro de Clientes",
     estoque: "Estoque Consolidado do Dia",
     caixas: "Gestão de Caixas 6424",
@@ -845,103 +1018,97 @@ export default function AgroVendasPage() {
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden"
             onClick={() => setSidebarOpen(false)}
             aria-hidden
           />
         )}
 
-        {/* Sidebar Dashboard Navigation */}
+        {/* Navigation rail */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-72 overflow-x-hidden bg-gradient-to-b from-emerald-900 via-green-950 to-emerald-950 text-white p-6 flex flex-col shadow-2xl shrink-0 transition-transform duration-300 lg:static lg:z-auto lg:w-68 lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-50 flex w-72 shrink-0 flex-col bg-emerald-900 text-white transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:w-72 lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
+          aria-label="Navegação principal"
         >
-          <div className="mb-10 pb-4 border-b border-emerald-800/60">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/95 p-1.5 shadow-lg shadow-black/20">
-                  <img src="/logo.png" alt="" className="h-full w-full object-contain" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">AgroVendas</h1>
-                  <p className="text-emerald-300 text-xs font-semibold tracking-wider uppercase">CEASA Hortifruti</p>
-                </div>
+          <div className="flex items-center justify-between gap-3 px-5 pb-5 pt-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white p-1">
+                <img src="/logo-mark.png" alt="" className="h-full w-full object-contain" />
               </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="lg:hidden text-emerald-200 hover:text-white p-1"
-                aria-label="Fechar menu"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="leading-tight">
+                <p className="text-lg font-semibold tracking-tight">AgroVendas</p>
+                <p className="text-sm text-emerald-200">CEASA Hortifruti</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="flex h-11 w-11 items-center justify-center rounded-md text-emerald-100 hover:bg-white/10 lg:hidden"
+              aria-label="Fechar menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <nav className="flex-1 overflow-y-auto px-3 py-2" aria-label="Seções">
+            <ul className="space-y-1">
+              {navItems.map(({ key, label, icon: Icon, onClick }) => (
+                <li key={key}>
+                  <button
+                    onClick={() => { onClick(); setSidebarOpen(false) }}
+                    aria-current={activeSection === key ? "page" : undefined}
+                    className={`flex min-h-12 w-full items-center gap-3 rounded-md px-3 text-left text-base transition-colors duration-150 ${
+                      activeSection === key
+                        ? "bg-white/12 font-semibold text-white"
+                        : "text-emerald-100 hover:bg-white/8 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                    <span className="leading-snug">{label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <div className="border-t border-white/12 px-5 py-4">
+            <p className="truncate text-base font-medium">{user?.nome}</p>
+            <p className="truncate text-sm text-emerald-200">{user?.email}</p>
+            <div className="mt-2 -ml-3 flex flex-col items-start">
+              <ChangePasswordDialog />
+              <LogoutButton />
             </div>
           </div>
+        </aside>
 
-          <div className="mb-4 pb-4 border-b border-emerald-800/60">
-            <p className="text-emerald-100 text-sm">Olá, <strong>{user?.nome}</strong></p>
-            <p className="text-emerald-300 text-xs">{user?.email}</p>
-          </div>
-
-        <nav className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden">
-          {navItems.map(({ key, label, icon: Icon, onClick }) => (
-            <button
-              key={key}
-              onClick={() => { onClick(); setSidebarOpen(false) }}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 text-left ${
-                activeSection === key
-                  ? "bg-white text-emerald-900 shadow-md shadow-emerald-900/10 font-bold scale-[1.02]"
-                  : "text-emerald-100 hover:bg-emerald-800/40 hover:text-white"
-              }`}
-            >
-              <Icon className="w-5 h-5 shrink-0" />
-              <span className="leading-tight">{label}</span>
-            </button>
-          ))}
-        </nav>
-
-        {/* Global Connection Badge */}
-        <div className="pt-4 border-t border-emerald-800/60 mt-auto space-y-3">
-          <div className="flex items-center gap-2 text-xs text-emerald-300">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Banco Conectado</span>
-          </div>
-          <LogoutButton />
-        </div>
-      </aside>
-
-      {/* Main Container Content */}
-      <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-12">
-        <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8">
-
-          {/* Mobile top bar: menu trigger + brand */}
-          <div className="flex items-center justify-between lg:hidden -mb-2">
+        {/* Main Container Content */}
+        <main className="min-w-0 flex-1">
+          {/* Mobile top bar */}
+          <div className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-3 lg:hidden">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm text-slate-700 font-semibold text-sm"
+              className="flex h-11 items-center gap-2 rounded-md px-3 text-base font-semibold text-slate-800 hover:bg-slate-100"
               aria-label="Abrir menu"
             >
-              <Menu className="w-4 h-4" />
+              <Menu className="h-5 w-5" aria-hidden />
               Menu
             </button>
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="AgroVendas" className="h-7 w-7 object-contain" />
-              <span className="font-bold text-emerald-950 text-sm">AgroVendas</span>
+            <div className="flex items-center gap-2 pr-1">
+              <img src="/logo-mark.png" alt="" className="h-8 w-8 object-contain" />
+              <span className="font-semibold text-slate-900">AgroVendas</span>
             </div>
           </div>
 
-          {/* Top Bar Header with Date Input */}
-          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
-            <div>
-              <span className="text-emerald-600 font-bold text-xs uppercase tracking-widest">Painel AgroVendas</span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {sectionTitle[activeSection]}
-              </h2>
-            </div>
+          <div className="mx-auto max-w-7xl space-y-6 px-4 pb-32 pt-5 sm:px-6 md:pb-12 lg:space-y-8 lg:px-10 lg:pt-10">
 
-            <div className="flex items-center gap-3 bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200 shrink-0 self-start md:self-auto">
-              <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
-              <Label htmlFor="global-date" className="text-xs font-bold text-slate-500 uppercase whitespace-nowrap">Data Geral:</Label>
+          {/* Page header with the working date */}
+          <header className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+              {sectionTitle[activeSection]}
+            </h1>
+
+            <div className="flex items-center gap-3">
+              <Label htmlFor="global-date" className="shrink-0 text-base text-slate-600">Data</Label>
               <input
                 id="global-date"
                 type="date"
@@ -953,319 +1120,213 @@ export default function AgroVendasPage() {
                     loadSupplierDeliveries(expandedSupplier)
                   }
                 }}
-                className="text-sm font-semibold border-none text-slate-700 focus:outline-none focus:ring-0 bg-transparent min-w-0"
+                className="h-11 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-base font-medium text-slate-900 hover:border-slate-400 focus-visible:border-emerald-600 sm:flex-none"
               />
             </div>
           </header>
 
           {/* ================= SECTION 1: VENDAS DO DIA ================= */}
           {activeSection === "vendas" && (
-            <div className="space-y-8">
-              
-              {/* Dashboard Indicator Cards */}
-              <button
-                onClick={() => setStatsOpenMobile((v) => !v)}
-                className="md:hidden w-full flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm text-sm font-bold text-slate-700"
-              >
-                <span className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-emerald-600" />
-                  Indicadores do dia
-                </span>
-                {statsOpenMobile ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-              </button>
+            <div className="space-y-6">
 
-              <div className={`grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 ${statsOpenMobile ? "grid" : "hidden md:grid"}`}>
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-emerald-500">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
-                      <span>Vendas Feitas</span>
-                      <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-extrabold text-slate-900">{totalSalesCount}</p>
-                    <p className="text-xs text-slate-500 mt-1">Registradas hoje</p>
-                  </CardContent>
-                </Card>
+              {/* Day summary: one ruled strip, not four cards */}
+              <dl className="grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-white md:grid-cols-4">
+                <div className="col-span-3 border-b border-slate-200 px-4 py-4 sm:px-5 md:col-span-1 md:border-b-0 md:border-r">
+                  <dt className="text-sm text-slate-600">Total vendido</dt>
+                  <dd className="mt-1 whitespace-nowrap text-3xl font-semibold tracking-tight tabular-nums text-slate-900">
+                    {brl(sales.reduce((sum, sale) => sum + saleTotal(sale), 0))}
+                  </dd>
+                </div>
+                <div className="border-r border-slate-200 px-4 py-4 sm:px-5">
+                  <dt className="text-sm text-slate-600">Pagas</dt>
+                  <dd className="mt-1 whitespace-nowrap text-3xl font-semibold tracking-tight tabular-nums text-emerald-700">
+                    {totalSalesPaid}<span className="text-base font-medium text-slate-600"> de {totalSalesCount}</span>
+                  </dd>
+                </div>
+                <div className="border-r border-slate-200 px-4 py-4 sm:px-5">
+                  <dt className="text-sm text-slate-600">Em aberto</dt>
+                  <dd className={`mt-1 text-3xl font-semibold tracking-tight tabular-nums ${totalSalesOwing > 0 ? "text-red-700" : "text-slate-900"}`}>{totalSalesOwing}</dd>
+                </div>
+                <div className="px-4 py-4 sm:px-5">
+                  <dt className="text-sm text-slate-600">Caixas</dt>
+                  <dd className="mt-1 text-3xl font-semibold tracking-tight tabular-nums text-slate-900">{totalBoxesSold}</dd>
+                </div>
+              </dl>
 
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-green-500">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
-                      <span>Vendas Liquidadas</span>
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-extrabold text-slate-900">{totalSalesPaid}</p>
-                    <p className="text-xs text-slate-500 mt-1">Pagamento integral</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-rose-500">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
-                      <span>Vendas em Aberto</span>
-                      <AlertCircle className="w-4 h-4 text-rose-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-extrabold text-slate-900">{totalSalesOwing}</p>
-                    <p className="text-xs text-slate-500 mt-1">Devendo ou Parciais</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:scale-[1.02] transition-transform duration-200 border-t-2 border-t-emerald-600">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
-                      <span>Volume de Vendas</span>
-                      <Package className="w-4 h-4 text-emerald-600" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-extrabold text-slate-900">{totalBoxesSold}</p>
-                    <p className="text-xs text-slate-500 mt-1">Caixas comercializadas</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Main Sales Table List */}
-              <Card className="shadow-lg border border-slate-100 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-emerald-50 to-slate-50 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 p-6">
+              {/* Sales ledger */}
+              <section aria-labelledby="sales-heading">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="text-lg font-bold text-emerald-950">Planilha do Dia</CardTitle>
-                    <p className="text-xs text-slate-500 mt-0.5">Vendas lançadas para {selectedDate ? new Date(selectedDate + "T00:00:00").toLocaleDateString("pt-BR") : ""}</p>
+                    <h2 id="sales-heading" className="text-xl font-semibold text-slate-900">Planilha do dia</h2>
+                    <p className="text-sm text-slate-600">
+                      {selectedDate ? new Date(selectedDate + "T00:00:00").toLocaleDateString("pt-BR") : ""}
+                      {" "}&middot; {sales.length} {sales.length === 1 ? "venda" : "vendas"}
+                    </p>
                   </div>
-                  <div className="flex gap-2 w-full md:w-auto">
-                    <Button
-                      onClick={exportSalesToExcel}
-                      variant="outline"
-                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold flex-1 md:flex-none"
-                    >
-                      <FileDown className="w-4 h-4 mr-2 shrink-0" /> <span className="truncate">Exportar Excel</span>
+                  <div className="flex gap-2">
+                    <Button onClick={exportSalesToExcel} variant="outline" className="flex-1 sm:flex-none">
+                      <FileDown aria-hidden /> Exportar Excel
                     </Button>
-                    <Button
-                      onClick={openNewSaleModal}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl flex-1 md:flex-none"
-                    >
-                      <Plus className="w-4 h-4 mr-2 shrink-0" /> Nova Venda
+                    <Button onClick={openNewSaleModal} className="hidden md:inline-flex">
+                      <Plus aria-hidden /> Nova venda
                     </Button>
                   </div>
-                </CardHeader>
-                
-                <CardContent className="p-0">
-                  {/* Mobile: stacked cards */}
-                  <div className="md:hidden divide-y divide-slate-100">
-                    {sales.map((sale) => {
-                      const totalBoxes = sale.mercadorias.reduce((s, m) => s + m.qtde, 0)
-                      return (
-                        <div key={sale.id} className="p-4 space-y-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-bold text-slate-900">{sale.cliente}</p>
-                              <span className="inline-block mt-1 px-2 py-0.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
-                                {sale.modeloCaixa}
-                              </span>
-                            </div>
-                            <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getPaymentBadge(sale.pagamentoVerduras)}`}>
-                              {sale.pagamentoVerduras === "Parcial" ? `Parcial (R$ ${sale.valorPago.toFixed(2)})` : sale.pagamentoVerduras}
-                            </span>
-                          </div>
+                </div>
 
-                          <div className="space-y-1 rounded-lg bg-slate-50/70 p-3">
-                            {sale.mercadorias.map((m, idx) => (
-                              <div key={idx} className="text-xs flex items-center gap-1.5 text-slate-600">
-                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                                <span className="font-semibold text-slate-800">{m.nome}</span>: {m.qtde} caixas × R$ {m.valor.toFixed(2)}
-                              </div>
-                            ))}
-                            <div className="text-xs font-bold text-slate-800 pt-1">Total: {totalBoxes} caixas</div>
-                          </div>
-
-                          {sale.modeloCaixa !== "Papelão" && (
-                            <div className="text-xs">
-                              <span className="font-semibold text-slate-600">{sale.caixasPagasVale} de {sale.qtdeCaixas6424} caixas 6424 pagas</span>
-                              {sale.caixasDevendoVale > 0 ? (
-                                <span className="text-rose-600 font-bold flex items-center gap-1 mt-1">
-                                  <AlertCircle className="w-3.5 h-3.5" />
-                                  Devendo {sale.caixasDevendoVale} caixas
-                                </span>
-                              ) : (
-                                <span className="text-emerald-600 font-bold flex items-center gap-1 mt-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  Tudo devolvido
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-2 pt-1">
-                            {sale.caixasDevendoVale > 0 && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openReturnBoxModal(sale)}
-                                className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 h-9 flex-1"
-                              >
-                                Devolver Vales
-                              </Button>
-                            )}
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              onClick={() => openEditSaleModal(sale)}
-                              className="border-slate-200 hover:text-emerald-700 h-9 w-9 rounded-lg shrink-0"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="destructive"
-                              onClick={() => handleDeleteSale(sale.id!)}
-                              className="h-9 w-9 rounded-lg shrink-0"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                {/* Mobile: ruled rows */}
+                <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white md:hidden">
+                  {sales.map((sale) => (
+                    <article key={sale.id} className="space-y-3 px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold leading-snug text-slate-900">{sale.cliente}</h3>
+                          <p className="mt-0.5 text-base"><PaymentStatus sale={sale} /></p>
                         </div>
-                      )
-                    })}
-
-                    {sales.length === 0 && (
-                      <div className="text-center py-16 text-slate-400 bg-white">
-                        <Package className="w-12 h-12 mx-auto mb-3 opacity-40 text-slate-400" />
-                        <p className="font-semibold text-sm">Nenhuma venda registrada nesta data.</p>
-                        <p className="text-xs text-slate-400 mt-1">Toque em "Nova Venda" para começar a registrar.</p>
+                        <p className="shrink-0 tabular-nums text-xl font-semibold text-slate-900">{brl(saleTotal(sale))}</p>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Desktop: table */}
-                  <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50/80 text-slate-500 font-bold border-b border-slate-100">
-                        <tr>
-                          <th className="px-6 py-4 text-left">Cliente</th>
-                          <th className="px-6 py-4 text-left">Mercadorias / Hortifruti</th>
-                          <th className="px-6 py-4 text-left">Modelo Caixa</th>
-                          <th className="px-6 py-4 text-left">Caixas 6424 c/ Vale</th>
-                          <th className="px-6 py-4 text-left">Vendas Status</th>
-                          <th className="px-6 py-4 text-center">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
-                        {sales.map((sale) => {
-                          const totalBoxes = sale.mercadorias.reduce((s, m) => s + m.qtde, 0)
-                          return (
-                            <tr key={sale.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-4">
-                                <span className="font-bold text-slate-900">{sale.cliente}</span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="space-y-1">
-                                  {sale.mercadorias.map((m, idx) => (
-                                    <div key={idx} className="text-xs flex items-center gap-1.5 text-slate-600">
-                                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                                      <span className="font-semibold text-slate-800">{m.nome}</span>: {m.qtde} caixas × R$ {m.valor.toFixed(2)}
-                                    </div>
-                                  ))}
-                                  <div className="text-xs font-bold text-slate-800 pt-1">
-                                    Total: {totalBoxes} caixas
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
-                                  {sale.modeloCaixa}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                {sale.modeloCaixa !== "Papelão" ? (
-                                  <div className="text-xs">
-                                    <div className="font-semibold">{sale.caixasPagasVale} de {sale.qtdeCaixas6424} pagas</div>
-                                    {sale.caixasDevendoVale > 0 ? (
-                                      <span className="text-rose-600 font-bold flex items-center gap-1 mt-1">
-                                        <AlertCircle className="w-3.5 h-3.5" />
-                                        Devendo {sale.caixasDevendoVale} caixas
-                                      </span>
-                                    ) : (
-                                      <span className="text-emerald-600 font-bold flex items-center gap-1 mt-1">
-                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                        Tudo devolvido
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-400 font-semibold text-xs">-</span>
-                                )}
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getPaymentBadge(sale.pagamentoVerduras)}`}>
-                                  {sale.pagamentoVerduras === "Parcial" ? `Parcial (R$ ${sale.valorPago.toFixed(2)})` : sale.pagamentoVerduras}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center justify-center gap-2">
-                                  {sale.caixasDevendoVale > 0 && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => openReturnBoxModal(sale)}
-                                      className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 h-8"
-                                    >
-                                      Devolver Vales
-                                    </Button>
-                                  )}
-                                  <Button
-                                    size="icon"
-                                    variant="outline"
-                                    onClick={() => openEditSaleModal(sale)}
-                                    className="border-slate-200 hover:text-emerald-700 h-8 w-8 rounded-lg"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="destructive"
-                                    onClick={() => handleDeleteSale(sale.id!)}
-                                    className="h-8 w-8 rounded-lg"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
+                      <ul className="space-y-1 text-base text-slate-700">
+                        {sale.mercadorias.map((m, idx) => (
+                          <li key={idx} className="flex justify-between gap-3">
+                            <span><span className="font-medium text-slate-900">{m.nome}</span> &middot; {m.qtde} cx</span>
+                            <span className="tabular-nums text-slate-600">{brl(m.qtde * m.valor)}</span>
+                          </li>
+                        ))}
+                      </ul>
 
-                        {sales.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="text-center py-16 text-slate-400 bg-white">
-                              <Package className="w-12 h-12 mx-auto mb-3 opacity-40 text-slate-400" />
-                              <p className="font-semibold text-sm">Nenhuma venda registrada nesta data.</p>
-                              <p className="text-xs text-slate-400 mt-1">Clique em "+ Nova Venda" para começar a registrar.</p>
-                            </td>
-                          </tr>
+                      <div className="border-t border-dashed border-slate-200 pt-3 text-base">
+                        <BoxVale sale={sale} showModel />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {sale.caixasDevendoVale > 0 && (
+                          <Button variant="outline" onClick={() => openReturnBoxModal(sale)} className="col-span-2">
+                            Devolver vales
+                          </Button>
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                        <Button variant="outline" onClick={() => openEditSaleModal(sale)}>
+                          <Edit aria-hidden /> Editar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDeleteSale(sale.id!)}
+                          className="text-red-700 hover:border-red-300 hover:bg-red-50"
+                        >
+                          <Trash2 aria-hidden /> Excluir
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+
+                  {sales.length === 0 && (
+                    <div className="px-5 py-12 text-center">
+                      <p className="text-lg font-semibold text-slate-900">Nenhuma venda neste dia</p>
+                      <p className="mx-auto mt-1 max-w-xs text-base text-slate-600">
+                        Toque em &ldquo;Nova venda&rdquo; para lançar a primeira.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop: dense table */}
+                <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
+                  <table className="w-full text-base">
+                    <thead>
+                      <tr className="border-b border-slate-300 text-left text-sm font-semibold text-slate-600">
+                        <th scope="col" className="px-4 py-3">Cliente</th>
+                        <th scope="col" className="px-4 py-3">Mercadorias</th>
+                        <th scope="col" className="whitespace-nowrap px-4 py-3">Caixas 6424 (vale)</th>
+                        <th scope="col" className="px-4 py-3 text-right">Total</th>
+                        <th scope="col" className="px-4 py-3">Pagamento</th>
+                        <th scope="col" className="px-4 py-3"><span className="sr-only">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {sales.map((sale) => (
+                        <tr key={sale.id} className="align-top transition-colors hover:bg-slate-50">
+                          <td className="px-4 py-4">
+                            <p className="font-semibold text-slate-900">{sale.cliente}</p>
+                            <p className="text-sm text-slate-600">Caixa {sale.modeloCaixa}</p>
+                          </td>
+                          <td className="px-4 py-4">
+                            <ul className="space-y-1">
+                              {sale.mercadorias.map((m, idx) => (
+                                <li key={idx} className="text-slate-700">
+                                  <span className="font-medium text-slate-900">{m.nome}</span>
+                                  <span className="whitespace-nowrap text-slate-600"> &middot; {m.qtde} cx &times; {brl(m.valor)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                          <td className="px-4 py-4 text-sm"><BoxVale sale={sale} onReturn={() => openReturnBoxModal(sale)} /></td>
+                          <td className="whitespace-nowrap px-4 py-4 text-right tabular-nums text-lg font-semibold text-slate-900">
+                            {brl(saleTotal(sale))}
+                          </td>
+                          <td className="px-4 py-4"><PaymentStatus sale={sale} /></td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => openEditSaleModal(sale)}
+                                aria-label={`Editar venda de ${sale.cliente}`}
+                                title="Editar"
+                              >
+                                <Edit aria-hidden />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDeleteSale(sale.id!)}
+                                aria-label={`Excluir venda de ${sale.cliente}`}
+                                title="Excluir"
+                                className="text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 aria-hidden />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {sales.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-14 text-center">
+                            <p className="text-lg font-semibold text-slate-900">Nenhuma venda neste dia</p>
+                            <p className="mx-auto mt-1 max-w-sm text-base text-slate-600">
+                              Use &ldquo;Nova venda&rdquo; para lançar a primeira.
+                            </p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* Primary action for phones: always within thumb reach */}
+          {activeSection === "vendas" && (
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:hidden">
+              <Button onClick={openNewSaleModal} size="lg" className="w-full text-lg">
+                <Plus aria-hidden /> Nova venda
+              </Button>
             </div>
           )}
 
           {activeSection === "clientes" && (
             <div className="space-y-6">
-              <Card className="border-slate-100 shadow-lg">
+              <Card className="border-slate-100">
                 <CardHeader className="flex flex-row items-center justify-between gap-4">
                   <div><CardTitle>Clientes cadastrados</CardTitle><p className="text-sm text-slate-500 mt-1">Pesquise, mantenha os dados e consulte o histórico de compras.</p></div>
-                  <Button onClick={() => setSelectedCustomer({ id: 0, nome: "", telefone: "", cpfCnpj: "", email: "", observacoes: "" })} className="bg-emerald-600 hover:bg-emerald-700"><Plus className="w-4 h-4 mr-2" />Novo cliente</Button>
+                  <Button onClick={() => setSelectedCustomer({ id: 0, nome: "", telefone: "", cpfCnpj: "", localizacao: "", observacoes: "" })}><Plus className="w-4 h-4 mr-2" />Novo cliente</Button>
                 </CardHeader>
                 <CardContent>
                   <Input value={customerSearch} onChange={(e) => { setCustomerSearch(e.target.value); loadCustomers(e.target.value) }} placeholder="Buscar por nome..." className="mb-4" />
                   <div className="divide-y divide-slate-100">
                     {customers.map(customer => <div key={customer.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      <div><p className="font-bold text-slate-900">{customer.nome}</p><p className="text-sm text-slate-500">{customer.telefone || customer.email || "Sem contato informado"}</p></div>
+                      <div><p className="font-bold text-slate-900">{customer.nome}</p><p className="text-sm text-slate-500">{customer.telefone || customer.localizacao || "Sem contato informado"}</p></div>
                       <div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => loadCustomerDetails(customer.id)}>Histórico</Button><Button variant="outline" size="icon" onClick={() => setSelectedCustomer(customer)}><Edit className="w-4 h-4" /></Button><Button variant="destructive" size="icon" onClick={() => deleteCustomer(customer.id)}><Trash2 className="w-4 h-4" /></Button></div>
                     </div>)}
                     {customers.length === 0 && <p className="py-10 text-center text-slate-400">Nenhum cliente encontrado.</p>}
@@ -1277,7 +1338,7 @@ export default function AgroVendasPage() {
                   <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <CardTitle>Histórico de {customerDetails.cliente.nome}</CardTitle>
-                      <p className="text-sm text-slate-500 mt-1">{customerDetails.cliente.telefone || ""} {customerDetails.cliente.email ? `• ${customerDetails.cliente.email}` : ""}</p>
+                      <p className="text-sm text-slate-500 mt-1">{customerDetails.cliente.telefone || ""} {customerDetails.cliente.localizacao ? `• ${customerDetails.cliente.localizacao}` : ""}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -1321,6 +1382,38 @@ export default function AgroVendasPage() {
             </div>
           )}
 
+          {/* ================= SECTION: MERCADORIAS ================= */}
+          {activeSection === "mercadorias" && (
+            <Card className="border-slate-200">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Mercadorias</CardTitle>
+                <Button onClick={openNewMerchandiseModal}>
+                  <Plus className="w-4 h-4 mr-2" />Nova mercadoria
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {merchandises.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <p className="font-bold text-slate-900">{m.nome}</p>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="icon" variant="outline" className="h-10 w-10" onClick={() => openEditMerchandiseModal(m)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="destructive" className="h-10 w-10" onClick={() => handleDeleteMerchandise(m)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {merchandises.length === 0 && (
+                    <p className="text-center py-10 text-slate-400">Nenhuma mercadoria cadastrada.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* ================= SECTION 2: GESTÃO DE ENTREGAS & FORNECEDORES ================= */}
           {activeSection === "fornecedores" && (
             <div className="space-y-8">
@@ -1333,9 +1426,9 @@ export default function AgroVendasPage() {
 
                 <Button
                   onClick={openNewSupplierModal}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 duration-100 transition-all rounded-xl self-start sm:self-auto"
+                  className="self-start sm:self-auto"
                 >
-                  <Plus className="w-4 h-4 mr-2" /> + Cadastrar Produtor
+                  <Plus aria-hidden /> Cadastrar produtor
                 </Button>
               </div>
 
@@ -1352,7 +1445,7 @@ export default function AgroVendasPage() {
                       {/* Supplier Card Header */}
                       <div
                         onClick={() => toggleSupplier(supplier.id)}
-                        className="p-4 sm:p-6 bg-gradient-to-r from-white to-slate-50/50 hover:bg-slate-50 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors border-b border-slate-100"
+                        className="p-4 sm:p-6 bg-white hover:bg-slate-50 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors border-b border-slate-100"
                       >
                         <div className="flex items-center gap-4">
                           <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 shrink-0">
@@ -1373,12 +1466,12 @@ export default function AgroVendasPage() {
                             className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 h-9 rounded-xl font-bold flex-1 md:flex-none"
                             onClick={(e) => openNewDeliveryModal(supplier, e)}
                           >
-                            + Lançar Entrega
+                            Lançar entrega
                           </Button>
                           <Button
                             size="icon"
                             variant="outline"
-                            className="border-slate-200 h-9 w-9 rounded-lg shrink-0"
+                            className="border-slate-200 h-10 w-10 shrink-0"
                             onClick={(e) => openEditSupplierModal(supplier, e)}
                           >
                             <Edit className="w-4 h-4 text-slate-600" />
@@ -1386,7 +1479,7 @@ export default function AgroVendasPage() {
                           <Button
                             size="icon"
                             variant="destructive"
-                            className="h-9 w-9 rounded-lg shrink-0"
+                            className="h-10 w-10 shrink-0"
                             onClick={(e) => handleDeleteSupplier(supplier.id, e)}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1406,73 +1499,98 @@ export default function AgroVendasPage() {
                       {isExpanded && (
                         <div className="bg-slate-50/50 p-4 sm:p-6 border-t border-slate-100">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                            <h5 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <h5 className="text-base font-semibold text-slate-900 flex items-center gap-2">
                               <Truck className="w-4 h-4 text-emerald-600" /> Histórico de Entregas
                             </h5>
 
-                            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs font-bold text-slate-500">
+                            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-medium text-slate-700">
                               <div>
-                                Caixas 6424 Entregues: <span className="text-emerald-700 font-extrabold">{totals.total6424}</span>
+                                Caixas 6424 Entregues: <span className="text-emerald-700 font-semibold">{totals.total6424}</span>
                               </div>
                               <div>
-                                Caixas Papelão Entregues: <span className="text-amber-800 font-extrabold">{totals.totalPapelao}</span>
+                                Caixas Papelão Entregues: <span className="text-amber-800 font-semibold">{totals.totalPapelao}</span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
-                            <table className="w-full text-xs text-slate-600">
-                              <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
-                                <tr>
-                                  <th className="px-3 sm:px-6 py-3 text-left">Data de Recebimento</th>
-                                  <th className="px-3 sm:px-6 py-3 text-left">Mercadoria Hortifruti</th>
-                                  <th className="px-3 sm:px-6 py-3 text-center">Caixas 6424</th>
-                                  <th className="px-3 sm:px-6 py-3 text-center">Caixas Papelão</th>
-                                  <th className="px-3 sm:px-6 py-3 text-center">Ações</th>
+                          <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white md:hidden">
+                            {deliveries.map((delivery) => (
+                              <article key={delivery.id} className="space-y-3 px-4 py-4">
+                                <h6 className="text-lg font-semibold text-slate-900">
+                                  {new Date(delivery.data + "T00:00:00").toLocaleDateString("pt-BR")}
+                                </h6>
+                                <DeliveryItems delivery={delivery} />
+                                <p className="text-sm text-slate-600">
+                                  Total: {deliveryVales(delivery)} cx 6424 &middot; {delivery.mercadorias.reduce((s, m) => s + m.quantidadePapelao, 0)} papelão
+                                </p>
+                                <div className="border-t border-dashed border-slate-200 pt-3 text-base">
+                                  <DeliveryPayment delivery={delivery} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button variant="outline" className="col-span-2" onClick={(e) => handleQuitarDelivery(supplier, delivery, e)}>
+                                    Quitar entrega
+                                  </Button>
+                                  <Button variant="outline" onClick={(e) => openEditDeliveryModal(supplier, delivery, e)}>
+                                    <Edit aria-hidden /> Editar
+                                  </Button>
+                                  <Button variant="destructive" onClick={(e) => handleDeleteDelivery(delivery.id!, supplier.id, e)}>
+                                    <Trash2 aria-hidden /> Excluir
+                                  </Button>
+                                </div>
+                              </article>
+                            ))}
+                            {deliveries.length === 0 && (
+                              <p className="px-5 py-10 text-center text-base text-slate-600">Nenhuma entrega registrada para este produtor.</p>
+                            )}
+                          </div>
+
+                          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
+                            <table className="w-full text-base">
+                              <thead>
+                                <tr className="border-b border-slate-300 text-left text-sm font-semibold text-slate-600">
+                                  <th scope="col" className="px-4 py-3">Data</th>
+                                  <th scope="col" className="px-4 py-3">Mercadorias</th>
+                                  <th scope="col" className="px-4 py-3 text-right">Cx 6424</th>
+                                  <th scope="col" className="px-4 py-3 text-right">Papelão</th>
+                                  <th scope="col" className="px-4 py-3">Pagamento ao produtor</th>
+                                  <th scope="col" className="px-4 py-3"><span className="sr-only">Ações</span></th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-150">
+                              <tbody className="divide-y divide-slate-200">
                                 {deliveries.map((delivery) => (
-                                  <tr key={delivery.id} className="hover:bg-slate-50/60">
-                                    <td className="px-6 py-4 font-semibold text-slate-900">
+                                  <tr key={delivery.id} className="align-top transition-colors hover:bg-slate-50">
+                                    <td className="whitespace-nowrap px-4 py-4 font-semibold text-slate-900">
                                       {new Date(delivery.data + "T00:00:00").toLocaleDateString("pt-BR")}
                                     </td>
-                                    <td className="px-6 py-4">
-                                      <div className="space-y-1">
-                                        {delivery.mercadorias.map((m, idx) => (
-                                          <div key={idx} className="flex items-center gap-1.5">
-                                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                                            <span className="font-bold text-slate-800">{m.nomeMercadoria}</span>
-                                            <span className="text-slate-400">
-                                              ({m.quantidadeCaixa6424} mod. 6424, {m.quantidadePapelao} papelão)
-                                            </span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center font-bold text-emerald-800">
-                                      {delivery.mercadorias.reduce((s, m) => s + m.quantidadeCaixa6424, 0)}
-                                    </td>
-                                    <td className="px-6 py-4 text-center font-bold text-amber-900">
+                                    <td className="px-4 py-4"><DeliveryItems delivery={delivery} /></td>
+                                    <td className="px-4 py-4 text-right font-semibold tabular-nums text-slate-900">{deliveryVales(delivery)}</td>
+                                    <td className="px-4 py-4 text-right font-semibold tabular-nums text-slate-900">
                                       {delivery.mercadorias.reduce((s, m) => s + m.quantidadePapelao, 0)}
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <div className="flex items-center justify-center gap-1.5">
-                                        <Button
-                                          size="icon"
-                                          variant="outline"
-                                          className="h-7 w-7 rounded-md border-slate-200"
-                                          onClick={(e) => openEditDeliveryModal(supplier, delivery, e)}
-                                        >
-                                          <Edit className="w-3.5 h-3.5" />
+                                    <td className="px-4 py-4 text-sm"><DeliveryPayment delivery={delivery} /></td>
+                                    <td className="px-4 py-3">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <Button size="sm" variant="outline" onClick={(e) => handleQuitarDelivery(supplier, delivery, e)}>
+                                          Quitar
                                         </Button>
                                         <Button
                                           size="icon"
-                                          variant="destructive"
-                                          className="h-7 w-7 rounded-md"
+                                          variant="ghost"
+                                          aria-label="Editar entrega"
+                                          title="Editar"
+                                          onClick={(e) => openEditDeliveryModal(supplier, delivery, e)}
+                                        >
+                                          <Edit aria-hidden />
+                                        </Button>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          aria-label="Excluir entrega"
+                                          title="Excluir"
+                                          className="text-red-700 hover:bg-red-50"
                                           onClick={(e) => handleDeleteDelivery(delivery.id!, supplier.id, e)}
                                         >
-                                          <Trash2 className="w-3.5 h-3.5" />
+                                          <Trash2 aria-hidden />
                                         </Button>
                                       </div>
                                     </td>
@@ -1481,8 +1599,8 @@ export default function AgroVendasPage() {
 
                                 {deliveries.length === 0 && (
                                   <tr>
-                                    <td colSpan={5} className="text-center py-10 text-slate-400">
-                                      Nenhuma entrega registrada para este produtor rural.
+                                    <td colSpan={6} className="px-5 py-10 text-center text-base text-slate-600">
+                                      Nenhuma entrega registrada para este produtor.
                                     </td>
                                   </tr>
                                 )}
@@ -1496,7 +1614,7 @@ export default function AgroVendasPage() {
                 })}
 
                 {suppliers.length === 0 && (
-                  <Card className="shadow-md">
+                  <Card>
                     <CardContent className="text-center py-16 text-slate-400">
                       <Users className="w-16 h-16 mx-auto mb-4 opacity-40 text-slate-400" />
                       <p className="font-semibold text-base">Nenhum produtor rural cadastrado.</p>
@@ -1512,11 +1630,11 @@ export default function AgroVendasPage() {
           {activeSection === "estoque" && (
             <div className="space-y-8">
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8">
                 
                 {/* Consolidado do Dia Column */}
-                <Card className="shadow-lg border border-slate-100 overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-emerald-50 to-slate-50/50 p-6 border-b border-slate-100">
+                <Card className="border border-slate-100 overflow-hidden">
+                  <CardHeader className="bg-slate-50 p-6 border-b border-slate-100">
                     <CardTitle className="text-lg font-bold text-emerald-950 flex items-center gap-2">
                       <Truck className="w-5 h-5 text-emerald-600" /> Mercadorias Recebidas (Data Selecionada)
                     </CardTitle>
@@ -1538,7 +1656,7 @@ export default function AgroVendasPage() {
                           {Object.entries(dailyDeliveries).map(([name, data]) => (
                             <tr key={name} className="hover:bg-slate-50/40">
                               <td className="px-6 py-4 font-bold text-slate-800">{name}</td>
-                              <td className="px-6 py-4 text-center font-extrabold text-slate-900">{data.total}</td>
+                              <td className="px-6 py-4 text-center font-semibold text-slate-900">{data.total}</td>
                               <td className="px-6 py-4 text-center text-amber-800 font-semibold">{data.papelao || "-"}</td>
                               <td className="px-6 py-4 text-center text-emerald-800 font-semibold">{data.caixa6424 || "-"}</td>
                               <td className="px-6 py-4 text-xs text-slate-600 font-semibold">
@@ -1561,8 +1679,8 @@ export default function AgroVendasPage() {
                 </Card>
 
                 {/* Received vs Sold Comparative Column */}
-                <Card className="shadow-lg border border-slate-100 overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-emerald-50 to-slate-50/50 p-6 border-b border-slate-100">
+                <Card className="border border-slate-100 overflow-hidden">
+                  <CardHeader className="bg-slate-50 p-6 border-b border-slate-100">
                     <CardTitle className="text-lg font-bold text-emerald-950 flex items-center gap-2">
                       <Layers className="w-5 h-5 text-emerald-600" /> Comparativo: Recebido vs Vendido
                     </CardTitle>
@@ -1604,7 +1722,7 @@ export default function AgroVendasPage() {
                                 <td className="px-6 py-4 font-bold text-slate-800">{name}</td>
                                 <td className="px-6 py-4 text-center font-semibold text-slate-600">{recebido} caixas</td>
                                 <td className="px-6 py-4 text-center font-semibold text-slate-600">{vendido} caixas</td>
-                                <td className={`px-6 py-4 text-center font-extrabold ${saldo > 0 ? "text-emerald-600" : (saldo < 0 ? "text-rose-600" : "text-slate-500")}`}>
+                                <td className={`px-6 py-4 text-center font-semibold ${saldo > 0 ? "text-emerald-600" : (saldo < 0 ? "text-rose-600" : "text-slate-500")}`}>
                                   {saldo > 0 ? `+${saldo}` : saldo}
                                 </td>
                                 <td className="px-6 py-4 text-center">
@@ -1638,60 +1756,29 @@ export default function AgroVendasPage() {
             <div className="space-y-8">
               
               {/* Box Logistics Stats Cards */}
-              <button
-                onClick={() => setBoxStatsOpenMobile((v) => !v)}
-                className="md:hidden w-full flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm text-sm font-bold text-slate-700"
-              >
-                <span className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-emerald-600" />
-                  Indicadores de caixas
-                </span>
-                {boxStatsOpenMobile ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-              </button>
+              <dl className="grid grid-cols-1 overflow-hidden rounded-lg border border-slate-200 bg-white md:grid-cols-3">
+                <div className="border-b border-slate-200 px-4 py-4 sm:px-5 md:border-b-0 md:border-r">
+                  <dt className="text-sm text-slate-600">Caixas 6424 recebidas</dt>
+                  <dd className="mt-1 text-3xl font-semibold tracking-tight tabular-nums text-slate-900">{totalDeliveredSupplierBoxes6424}</dd>
+                  <p className="text-sm text-slate-600">Entregas de fornecedores (histórico)</p>
+                </div>
+                <div className="border-b border-slate-200 px-4 py-4 sm:px-5 md:border-b-0 md:border-r">
+                  <dt className="text-sm text-slate-600">Caixas devendo (clientes)</dt>
+                  <dd className={`mt-1 text-3xl font-semibold tracking-tight tabular-nums ${totalBoxesOwedByClients > 0 ? "text-red-700" : "text-slate-900"}`}>{totalBoxesOwedByClients}</dd>
+                  <p className="text-sm text-slate-600">Lançadas em vendas de hoje</p>
+                </div>
+                <div className="px-4 py-4 sm:px-5">
+                  <dt className="text-sm text-slate-600">Caixas pagas com vale</dt>
+                  <dd className="mt-1 text-3xl font-semibold tracking-tight tabular-nums text-emerald-700">{totalBoxesPagasByClients}</dd>
+                  <p className="text-sm text-slate-600">Vales de caixa quitados hoje</p>
+                </div>
+              </dl>
 
-              <div className={`grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 ${boxStatsOpenMobile ? "grid" : "hidden md:grid"}`}>
-                <Card className="border-t-2 border-t-emerald-600 bg-white">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      Total Caixas 6424 Recebidas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-extrabold text-emerald-950">{totalDeliveredSupplierBoxes6424}</p>
-                    <p className="text-xs text-slate-500 mt-1">Entregas de fornecedores (histórico)</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-t-2 border-t-rose-500 bg-white">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      Caixas Devendo (Clientes)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-extrabold text-rose-600">{totalBoxesOwedByClients}</p>
-                    <p className="text-xs text-slate-500 mt-1">Lançadas em vendas de hoje</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-t-2 border-t-green-500 bg-white">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      Caixas Pagas/Vale
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-extrabold text-emerald-700">{totalBoxesPagasByClients}</p>
-                    <p className="text-xs text-slate-500 mt-1">Vales caixas quitados hoje</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8">
                 
                 {/* Supplier Crate Balances */}
-                <Card className="shadow-lg border border-slate-100 overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-emerald-50 to-slate-50/50 p-6 border-b border-slate-100">
+                <Card className="border border-slate-100 overflow-hidden">
+                  <CardHeader className="bg-slate-50 p-6 border-b border-slate-100">
                     <CardTitle className="text-lg font-bold text-emerald-950 flex items-center gap-2">
                       <Truck className="w-5 h-5 text-emerald-600" /> Saldo de Caixas por Produtor
                     </CardTitle>
@@ -1711,7 +1798,7 @@ export default function AgroVendasPage() {
                           {Object.entries(supplierBoxTotals).map(([name, data]) => (
                             <tr key={name} className="hover:bg-slate-50/40">
                               <td className="px-6 py-4 font-bold text-slate-800">{name}</td>
-                              <td className="px-6 py-4 text-center font-extrabold text-emerald-700">{data.total6424}</td>
+                              <td className="px-6 py-4 text-center font-semibold text-emerald-700">{data.total6424}</td>
                               <td className="px-6 py-4 text-center font-semibold text-slate-500">{data.totalPapelao}</td>
                             </tr>
                           ))}
@@ -1730,8 +1817,8 @@ export default function AgroVendasPage() {
                 </Card>
 
                 {/* Vales devidos por Clientes */}
-                <Card className="shadow-lg border border-slate-100 overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-emerald-50 to-slate-50/50 p-6 border-b border-slate-100">
+                <Card className="border border-slate-100 overflow-hidden">
+                  <CardHeader className="bg-slate-50 p-6 border-b border-slate-100">
                     <CardTitle className="text-lg font-bold text-emerald-950 flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-rose-500" /> Vales Caixas Devidos por Clientes (Histórico)
                     </CardTitle>
@@ -1755,7 +1842,7 @@ export default function AgroVendasPage() {
                               <td className="px-6 py-4 font-bold text-slate-800">{sale.cliente}</td>
                               <td className="px-6 py-4 text-center text-slate-600">{new Date(sale.data + "T00:00:00").toLocaleDateString("pt-BR")}</td>
                               <td className="px-6 py-4 text-center font-semibold text-slate-600">{sale.qtdeCaixas6424}</td>
-                              <td className="px-6 py-4 text-center font-extrabold text-rose-600">{sale.caixasDevendoVale} caixas</td>
+                              <td className="px-6 py-4 text-center font-semibold text-rose-600">{sale.caixasDevendoVale} caixas</td>
                               <td className="px-6 py-4 text-center">
                                 <Button
                                   size="sm"
@@ -1795,21 +1882,21 @@ export default function AgroVendasPage() {
             <DialogTitle className="text-2xl text-emerald-950 font-bold">
               {editingSale ? `Editar Lançamento de Venda` : `Registrar Nova Venda`}
             </DialogTitle>
-            <p className="text-xs text-slate-400">Data de Lançamento: {selectedDate}</p>
+            <p className="text-sm text-slate-600">Data do lançamento: {selectedDate ? new Date(selectedDate + "T00:00:00").toLocaleDateString("pt-BR") : ""}</p>
           </DialogHeader>
 
           <form onSubmit={handleSaleSubmit} className="space-y-6 py-4">
             
             <div className="space-y-2 relative">
-              <div className="flex items-center justify-between"><Label htmlFor="sale-cliente" className="text-emerald-950">Cliente</Label><div className="flex gap-2"><Button type="button" variant="ghost" size="sm" onClick={setUnknownCustomer}>Cliente desconhecido</Button><Button type="button" variant="outline" size="sm" onClick={() => { setQuickCustomerForm({ nome: saleCustomerQuery, telefone: "", cpfCnpj: "", email: "", observacoes: "" }); setCustomerModalOpen(true) }}><Plus className="w-4 h-4 mr-1" />Cadastrar rápido</Button></div></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><Label htmlFor="sale-cliente" className="text-emerald-950">Cliente</Label><div className="flex flex-wrap gap-2"><Button type="button" variant="ghost" size="sm" onClick={setUnknownCustomer}>Cliente desconhecido</Button><Button type="button" variant="outline" size="sm" onClick={() => { setQuickCustomerForm({ nome: saleCustomerQuery, telefone: "", cpfCnpj: "", localizacao: "", observacoes: "" }); setCustomerModalOpen(true) }}><Plus className="w-4 h-4 mr-1" />Cadastrar rápido</Button></div></div>
               <Input id="sale-cliente" value={saleCustomerQuery} onChange={(e) => { setSaleCustomerQuery(e.target.value); setSaleCustomerId(null); setSaleFormData({ ...saleFormData, cliente: e.target.value }) }} onFocus={() => loadCustomers(saleCustomerQuery)} placeholder="Pesquise pelo nome do cliente" autoComplete="off" />
-              {!saleCustomerId && saleCustomerQuery !== "Cliente desconhecido" && saleCustomerQuery.trim() && <div className="absolute z-20 top-[76px] w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-44 overflow-auto">{customers.filter(c => c.nome.toLowerCase().includes(saleCustomerQuery.toLowerCase())).slice(0, 8).map(customer => <button key={customer.id} type="button" className="w-full px-3 py-2 text-left hover:bg-emerald-50 text-sm" onClick={() => selectSaleCustomer(customer)}><strong>{customer.nome}</strong>{customer.telefone && <span className="text-slate-500 ml-2">{customer.telefone}</span>}</button>)}{customers.filter(c => c.nome.toLowerCase().includes(saleCustomerQuery.toLowerCase())).length === 0 && <p className="px-3 py-2 text-sm text-slate-500">Nenhum cadastro encontrado. Use “Cadastrar rápido”.</p>}</div>}
+              {!saleCustomerId && saleCustomerQuery !== "Cliente desconhecido" && saleCustomerQuery.trim() && <div className="absolute z-20 top-[76px] w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-44 overflow-auto">{customers.filter(c => c.nome.toLowerCase().includes(saleCustomerQuery.toLowerCase())).slice(0, 8).map(customer => <button key={customer.id} type="button" className="w-full px-3 py-3 text-left hover:bg-emerald-50 text-base" onClick={() => selectSaleCustomer(customer)}><strong>{customer.nome}</strong>{customer.telefone && <span className="text-slate-600 ml-2">{customer.telefone}</span>}</button>)}{customers.filter(c => c.nome.toLowerCase().includes(saleCustomerQuery.toLowerCase())).length === 0 && <p className="px-3 py-2 text-sm text-slate-500">Nenhum cadastro encontrado. Use “Cadastrar rápido”.</p>}</div>}
               {saleCustomerId && <p className="text-xs font-semibold text-emerald-700">Cliente cadastrado selecionado.</p>}
             </div>
 
             {/* Hortifruti list items dynamic input table */}
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label className="text-emerald-950">Mercadorias Hortifruti</Label>
                 <Button
                   type="button"
@@ -1829,12 +1916,19 @@ export default function AgroVendasPage() {
                       <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-slate-500">Mercadoria</Label>
-                          <Input
-                            value={prod.nome}
-                            onChange={(e) => updateSaleProductItem(idx, "nome", e.target.value)}
-                            placeholder="Ex: Tomate cereja"
-                            required
-                          />
+                          <Select value={prod.nome || undefined} onValueChange={(v) => updateSaleProductItem(idx, "nome", v)}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Selecione a mercadoria" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {prod.nome && !merchandises.some((m) => m.nome === prod.nome) && (
+                                <SelectItem value={prod.nome}>{prod.nome}</SelectItem>
+                              )}
+                              {merchandises.map((m) => (
+                                <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-slate-500">Quantidade (Caixas)</Label>
@@ -1960,7 +2054,7 @@ export default function AgroVendasPage() {
             {/* Submit Action */}
             <Button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-emerald-500/10 mt-6"
+              className="w-full mt-6"
             >
               Salvar Lançamento de Venda
             </Button>
@@ -1974,7 +2068,23 @@ export default function AgroVendasPage() {
       </Dialog>
 
       <Dialog open={selectedCustomer !== null} onOpenChange={(open) => !open && setSelectedCustomer(null)}>
-        <DialogContent className="max-w-lg rounded-2xl p-6"><DialogHeader><DialogTitle>{selectedCustomer?.id ? "Editar cliente" : "Novo cliente"}</DialogTitle></DialogHeader>{selectedCustomer && <form onSubmit={(e) => saveCustomer(selectedCustomer, e)} className="space-y-3 py-2"><div><Label>Nome *</Label><Input value={selectedCustomer.nome} onChange={e => setSelectedCustomer({ ...selectedCustomer, nome: e.target.value })} required /></div><div className="grid grid-cols-2 gap-3"><div><Label>Telefone</Label><Input value={selectedCustomer.telefone || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, telefone: e.target.value })} /></div><div><Label>CPF/CNPJ</Label><Input value={selectedCustomer.cpfCnpj || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, cpfCnpj: e.target.value })} /></div></div><div><Label>E-mail</Label><Input type="email" value={selectedCustomer.email || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, email: e.target.value })} /></div><div><Label>Observações</Label><textarea className="w-full min-h-20 border rounded-md p-2" value={selectedCustomer.observacoes || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, observacoes: e.target.value })} /></div><Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700">Salvar cliente</Button></form>}</DialogContent>
+        <DialogContent className="max-w-lg rounded-2xl p-6"><DialogHeader><DialogTitle>{selectedCustomer?.id ? "Editar cliente" : "Novo cliente"}</DialogTitle></DialogHeader>{selectedCustomer && <form onSubmit={(e) => saveCustomer(selectedCustomer, e)} className="space-y-3 py-2"><div><Label>Nome *</Label><Input value={selectedCustomer.nome} onChange={e => setSelectedCustomer({ ...selectedCustomer, nome: e.target.value })} required /></div><div className="grid grid-cols-2 gap-3"><div><Label>Telefone</Label><Input value={selectedCustomer.telefone || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, telefone: e.target.value })} /></div><div><Label>CPF/CNPJ</Label><Input value={selectedCustomer.cpfCnpj || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, cpfCnpj: e.target.value })} /></div></div><div><Label>Localização</Label><Input value={selectedCustomer.localizacao || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, localizacao: e.target.value })} placeholder="Ex: Box 12, Rua B" /></div><div><Label>Observações</Label><textarea className="w-full min-h-20 border rounded-md p-2" value={selectedCustomer.observacoes || ""} onChange={e => setSelectedCustomer({ ...selectedCustomer, observacoes: e.target.value })} /></div><Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700">Salvar cliente</Button></form>}</DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL: NOVA / EDITAR MERCADORIA ================= */}
+      <Dialog open={merchandiseModalOpen} onOpenChange={setMerchandiseModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle>{editingMerchandise ? "Editar mercadoria" : "Nova mercadoria"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleMerchandiseSubmit} className="space-y-3 py-2">
+            <div>
+              <Label htmlFor="merc-nome">Nome *</Label>
+              <Input id="merc-nome" value={merchandiseName} onChange={(e) => setMerchandiseName(e.target.value)} placeholder="Ex: Tomate cereja" required />
+            </div>
+            <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700">Salvar mercadoria</Button>
+          </form>
+        </DialogContent>
       </Dialog>
 
       {/* ================= MODAL: NOVO / EDITAR PRODUTOR ================= */}
@@ -2011,7 +2121,7 @@ export default function AgroVendasPage() {
 
             <Button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-xl shadow-lg mt-4"
+              className="w-full mt-4"
             >
               Salvar Cadastro
             </Button>
@@ -2026,8 +2136,8 @@ export default function AgroVendasPage() {
             <DialogTitle className="text-2xl text-emerald-950 font-bold">
               {editingDelivery ? "Editar Lançamento de Entrega" : "Registrar Entrega de Mercadorias"}
             </DialogTitle>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
-              Produtor: <span className="text-emerald-700 font-extrabold">{selectedSupplier?.nome}</span>
+            <p className="text-sm font-medium text-slate-600">
+              Produtor: <span className="text-emerald-700 font-semibold">{selectedSupplier?.nome}</span>
             </p>
           </DialogHeader>
 
@@ -2046,7 +2156,7 @@ export default function AgroVendasPage() {
 
             {/* Hortifruti deliveries dynamic input list */}
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label className="text-emerald-950 font-bold">Hortifrútis Entregues</Label>
                 <Button
                   type="button"
@@ -2062,16 +2172,23 @@ export default function AgroVendasPage() {
               <div className="space-y-3">
                 {deliveryProducts.map((prod, idx) => (
                   <Card key={idx} className="border border-green-100 shadow-sm bg-slate-50/50">
-                    <CardContent className="p-4 flex gap-3 items-end">
-                      <div className="flex-1 grid grid-cols-3 gap-3">
+                    <CardContent className="p-4 flex flex-col sm:flex-row gap-3 sm:items-end">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-slate-500">Mercadoria</Label>
-                          <Input
-                            value={prod.nomeMercadoria}
-                            onChange={(e) => updateDeliveryProductItem(idx, "nomeMercadoria", e.target.value)}
-                            placeholder="Ex: Abobrinha"
-                            required
-                          />
+                          <Select value={prod.nomeMercadoria || undefined} onValueChange={(v) => updateDeliveryProductItem(idx, "nomeMercadoria", v)}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Selecione a mercadoria" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {prod.nomeMercadoria && !merchandises.some((m) => m.nome === prod.nomeMercadoria) && (
+                                <SelectItem value={prod.nomeMercadoria}>{prod.nomeMercadoria}</SelectItem>
+                              )}
+                              {merchandises.map((m) => (
+                                <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-slate-500">Caixas 6424 (Plástico)</Label>
@@ -2101,7 +2218,7 @@ export default function AgroVendasPage() {
                         size="icon"
                         onClick={() => removeDeliveryProductItem(idx)}
                         disabled={deliveryProducts.length <= 1}
-                        className="h-9 w-9"
+                        className="h-11 w-11 self-end sm:self-auto"
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -2111,9 +2228,27 @@ export default function AgroVendasPage() {
               </div>
             </div>
 
+            <div className="space-y-3">
+              <Label className="text-emerald-950 font-bold">Pagamento ao Produtor</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="del-total" className="text-xs text-slate-500">Valor total (R$)</Label>
+                  <Input id="del-total" type="number" min="0" step="0.01" value={deliveryValorTotal} onChange={(e) => setDeliveryValorTotal(e.target.value)} placeholder="Ex: 1500.00" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="del-pago" className="text-xs text-slate-500">Já pago em dinheiro (R$)</Label>
+                  <Input id="del-pago" type="number" min="0" step="0.01" value={deliveryValorPago} onChange={(e) => setDeliveryValorPago(e.target.value)} placeholder="Ex: 500.00" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="del-vales" className="text-xs text-slate-500">Vales de cxs pagos (qtde)</Label>
+                  <Input id="del-vales" type="number" min="0" value={deliveryValesPagos} onChange={(e) => setDeliveryValesPagos(e.target.value)} placeholder="Ex: 10" />
+                </div>
+              </div>
+            </div>
+
             <Button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-xl shadow-lg mt-6"
+              className="w-full mt-6"
             >
               Registrar Lançamento de Entrega
             </Button>
@@ -2152,7 +2287,7 @@ export default function AgroVendasPage() {
 
             <Button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-xl shadow-lg mt-4"
+              className="w-full mt-4"
             >
               Confirmar Devolução
             </Button>

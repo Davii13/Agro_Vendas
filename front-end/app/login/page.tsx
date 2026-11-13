@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { AlertCircle, Leaf, Sprout, TrendingUp } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
   const [manterConectado, setManterConectado] = useState(false)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
@@ -34,155 +35,115 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr] bg-emerald-950">
-      {/* Brand panel — hidden on small screens */}
-      <div className="relative hidden lg:flex flex-col justify-between overflow-hidden p-12 text-white">
-        <div
-          className="absolute inset-0 bg-gradient-to-br from-emerald-900 via-green-950 to-emerald-950"
-          aria-hidden
-        />
-        <div
-          className="absolute inset-0 opacity-[0.07]"
-          aria-hidden
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-            backgroundSize: '28px 28px',
-          }}
-        />
-        <div
-          className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl"
-          aria-hidden
-        />
-        <div
-          className="absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-green-400/10 blur-3xl"
-          aria-hidden
-        />
-
-        <div className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/95 p-1.5 shadow-lg shadow-black/20">
-            <img src="/logo.png" alt="" className="h-full w-full object-contain" />
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      {/* Brand panel: desktop only */}
+      <div className="hidden flex-col justify-between bg-emerald-900 p-12 text-white lg:flex">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-md bg-white p-1">
+            <img src="/logo-mark.png" alt="" className="h-full w-full object-contain" />
           </div>
-          <div>
-            <p className="text-lg font-bold tracking-tight">AgroVendas</p>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-emerald-300">
-              CEASA Hortifruti
-            </p>
+          <div className="leading-tight">
+            <p className="text-xl font-semibold tracking-tight">AgroVendas</p>
+            <p className="text-sm text-emerald-200">CEASA Hortifruti</p>
           </div>
         </div>
 
-        <div className="relative max-w-md space-y-6">
-          <h2 className="text-4xl font-bold leading-tight text-balance">
-            Gestão completa para o seu hortifruti.
+        <div className="max-w-md">
+          <h2 className="text-balance text-3xl font-semibold leading-tight tracking-tight">
+            A planilha do dia, o que cada produtor recebeu e o que ainda falta pagar.
           </h2>
-          <p className="text-emerald-200/80 text-base leading-relaxed">
-            Controle vendas, fornecedores, entregas e o vale-caixa em um único
-            painel, feito para o dia a dia da CEASA.
+          <p className="mt-4 text-base leading-relaxed text-emerald-100">
+            Vendas, entregas, vales de caixa 6424 e clientes num só lugar, feito para o balcão.
           </p>
-
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                <TrendingUp className="h-4.5 w-4.5 text-emerald-300" />
-              </div>
-              <p className="text-sm text-emerald-100/90">Acompanhe vendas e recebimentos em tempo real</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                <Sprout className="h-4.5 w-4.5 text-emerald-300" />
-              </div>
-              <p className="text-sm text-emerald-100/90">Organize entregas e estoque por fornecedor</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                <Leaf className="h-4.5 w-4.5 text-emerald-300" />
-              </div>
-              <p className="text-sm text-emerald-100/90">Histórico completo de cada cliente, sempre à mão</p>
-            </div>
-          </div>
         </div>
 
-        <p className="relative text-xs text-emerald-400/60">
-          © {new Date().getFullYear()} AgroVendas. Feito para produtores e comerciantes de hortifruti.
-        </p>
+        <p className="text-sm text-emerald-200">&copy; {new Date().getFullYear()} AgroVendas</p>
       </div>
 
       {/* Form panel */}
-      <div className="flex items-center justify-center bg-slate-50 px-6 py-12">
+      <div className="flex items-center justify-center bg-background px-5 py-10 sm:px-8">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex flex-col items-center text-center lg:hidden">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white p-2 shadow-md shadow-emerald-900/10 ring-1 ring-emerald-100">
-              <img src="/logo.png" alt="AgroVendas" className="h-full w-full object-contain" />
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <div className="flex h-12 w-12 items-center justify-center rounded-md border border-slate-200 bg-white p-1.5">
+              <img src="/logo-mark.png" alt="" className="h-full w-full object-contain" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-emerald-950">AgroVendas</h1>
-            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">
-              CEASA Hortifruti
-            </p>
+            <div className="leading-tight">
+              <p className="text-xl font-semibold tracking-tight text-slate-900">AgroVendas</p>
+              <p className="text-sm text-slate-600">CEASA Hortifruti</p>
+            </div>
           </div>
 
-          <div className="mb-8 hidden lg:block">
-            <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Bem-vindo de volta</h1>
-            <p className="mt-1.5 text-sm text-slate-500">Entre com suas credenciais para acessar o painel.</p>
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Entrar</h1>
+          <p className="mt-1 text-base text-slate-600">Use o e-mail e a senha do seu cadastro.</p>
 
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <form onSubmit={handleSubmit} className="mt-7 space-y-5" noValidate>
             {erro && (
               <div
                 role="alert"
-                className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-800"
+                className="flex items-start gap-2.5 rounded-md border border-red-200 bg-red-50 p-3.5 text-base text-red-800"
               >
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
                 <span>{erro}</span>
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-slate-700">
-                Email
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
               <Input
                 id="email"
                 type="email"
+                inputMode="email"
                 autoComplete="email"
-                placeholder="seu.email@exemplo.com"
+                autoCapitalize="none"
+                placeholder="nome@exemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={carregando}
-                className="h-11"
+                className="h-12"
+                aria-invalid={erro ? true : undefined}
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="senha" className="text-slate-700">
-                Senha
-              </Label>
-              <Input
-                id="senha"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                required
-                disabled={carregando}
-                className="h-11"
-              />
+            <div className="space-y-2">
+              <Label htmlFor="senha">Senha</Label>
+              <div className="relative">
+                <Input
+                  id="senha"
+                  type={mostrarSenha ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  required
+                  disabled={carregando}
+                  className="h-12 pr-14"
+                  aria-invalid={erro ? true : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarSenha((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-md text-slate-600 hover:text-slate-900"
+                  aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                  aria-pressed={mostrarSenha}
+                >
+                  {mostrarSenha ? <EyeOff className="h-5 w-5" aria-hidden /> : <Eye className="h-5 w-5" aria-hidden />}
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-3">
               <Checkbox
                 id="manterConectado"
                 checked={manterConectado}
                 onCheckedChange={setManterConectado}
                 disabled={carregando}
               />
-              <Label htmlFor="manterConectado" className="cursor-pointer font-normal text-slate-600">
+              <Label htmlFor="manterConectado" className="cursor-pointer text-base font-normal text-slate-700">
                 Manter-me conectado por 30 dias
               </Label>
             </div>
 
-            <Button type="submit" size="lg" className="mt-2 w-full" disabled={carregando}>
+            <Button type="submit" size="lg" className="w-full text-lg" disabled={carregando}>
               {carregando ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>

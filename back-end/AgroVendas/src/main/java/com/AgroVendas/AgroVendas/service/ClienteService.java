@@ -56,7 +56,7 @@ public class ClienteService {
         cliente.setNome(dto.getNome().trim());
         cliente.setTelefone(vazioParaNulo(dto.getTelefone()));
         cliente.setCpfCnpj(documento);
-        cliente.setEmail(vazioParaNulo(dto.getEmail()));
+        cliente.setLocalizacao(vazioParaNulo(dto.getLocalizacao()));
         cliente.setObservacoes(vazioParaNulo(dto.getObservacoes()));
         return cliente;
     }

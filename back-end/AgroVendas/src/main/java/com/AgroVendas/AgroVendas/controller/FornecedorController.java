@@ -4,29 +4,13 @@ package com.AgroVendas.AgroVendas.controller;
 import com.AgroVendas.AgroVendas.dto.FornecedorDTO;
 import com.AgroVendas.AgroVendas.model.Fornecedor;
 import com.AgroVendas.AgroVendas.service.FornecedorService;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 @RestController
 @RequestMapping("/api/fornecedores")
-@CrossOrigin(
-    origins = {
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://172.19.224.1:3000"
-    },
-    allowedHeaders = "*",
-    methods = {
-        RequestMethod.GET,
-        RequestMethod.POST,
-        RequestMethod.PUT,
-        RequestMethod.DELETE,
-        RequestMethod.OPTIONS
-    }
-)
 @PreAuthorize("isAuthenticated()")
 public class FornecedorController {
 
@@ -42,12 +26,12 @@ public class FornecedorController {
     }
 
     @PostMapping
-    public Fornecedor criar(@RequestBody FornecedorDTO dto) {
+    public Fornecedor criar(@Valid @RequestBody FornecedorDTO dto) {
         return service.salvar(dto);
     }
 
     @PutMapping("/{id}")
-    public Fornecedor atualizar(@PathVariable Long id, @RequestBody FornecedorDTO dto) {
+    public Fornecedor atualizar(@PathVariable Long id, @Valid @RequestBody FornecedorDTO dto) {
         return service.atualizar(id, dto);
     }
 

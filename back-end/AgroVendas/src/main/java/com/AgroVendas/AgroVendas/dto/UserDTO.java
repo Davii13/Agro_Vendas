@@ -11,8 +11,11 @@ public class UserDTO {
     private Long id;
     private String email;
     private String nome;
+    private String role;
+    private Boolean ativo;
 
     public static UserDTO fromUsuario(Usuario usuario) {
-        return new UserDTO(usuario.getId(), usuario.getEmail(), usuario.getNome());
+        return new UserDTO(usuario.getId(), usuario.getEmail(), usuario.getNome(),
+                usuario.getRole().name(), usuario.estaAtivo());
     }
 }

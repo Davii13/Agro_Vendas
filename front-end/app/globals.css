@@ -1,1 +1,208 @@
 @import "tailwindcss";
+
+/*
+ * AgroVendas design tokens.
+ *
+ * The app was built with stock Tailwind palette names (slate, emerald, green,
+ * rose, amber). Those names are remapped here so every existing utility class
+ * resolves to the AgroVendas palette: change a value once, the whole interface
+ * follows. Radii and shadows are remapped the same way to keep the surface flat.
+ *
+ * Palette logic
+ *   neutral  green-tinted greys (hue ~140), never a cold blue-grey
+ *   brand    forest green; 600 is the action color and passes AAA on white
+ *   success  the brand green, always paired with a label or icon
+ *   warning  ochre
+ *   error    brick red
+ */
+@theme {
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Type scale: tuned up for reading on a phone, outdoors. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.4;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 1.625rem;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 1.15;
+
+  /* Flat surface: one small radius family, no decorative shadows. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
+
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 1px 2px rgb(23 28 21 / 0.08);
+  --shadow-lg: 0 8px 24px -8px rgb(23 28 21 / 0.22);
+  --shadow-xl: 0 8px 24px -8px rgb(23 28 21 / 0.22);
+  --shadow-2xl: 0 12px 32px -8px rgb(23 28 21 / 0.28);
+
+  /* Neutrals */
+  --color-slate-50: #f7f8f6;
+  --color-slate-100: #eef1ec;
+  --color-slate-200: #dfe4dc;
+  --color-slate-300: #c9d0c5;
+  --color-slate-400: #6f796b;
+  --color-slate-500: #5f695c;
+  --color-slate-600: #4c5549;
+  --color-slate-700: #3b4238;
+  --color-slate-800: #272d25;
+  --color-slate-900: #171c15;
+  --color-slate-950: #0e120d;
+
+  /* Brand green (emerald and green share one ramp) */
+  --color-emerald-50: #f0f6f1;
+  --color-emerald-100: #dcebdf;
+  --color-emerald-200: #bbd7c3;
+  --color-emerald-300: #8fbc9d;
+  --color-emerald-400: #5f9b73;
+  --color-emerald-500: #3a7d54;
+  --color-emerald-600: #26683f;
+  --color-emerald-700: #1f5434;
+  --color-emerald-800: #1a432b;
+  --color-emerald-900: #14331f;
+  --color-emerald-950: #0d2114;
+  --color-green-50: #f0f6f1;
+  --color-green-100: #dcebdf;
+  --color-green-200: #bbd7c3;
+  --color-green-300: #8fbc9d;
+  --color-green-400: #5f9b73;
+  --color-green-500: #3a7d54;
+  --color-green-600: #26683f;
+  --color-green-700: #1f5434;
+  --color-green-800: #1a432b;
+  --color-green-900: #14331f;
+  --color-green-950: #0d2114;
+
+  /* Error (rose and red share one ramp) */
+  --color-rose-50: #fdf2f1;
+  --color-rose-100: #fae1de;
+  --color-rose-200: #f3bfb9;
+  --color-rose-300: #e8958c;
+  --color-rose-400: #d96b60;
+  --color-rose-500: #c8372d;
+  --color-rose-600: #b3261e;
+  --color-rose-700: #951d17;
+  --color-rose-800: #781813;
+  --color-rose-900: #5c130f;
+  --color-rose-950: #3a0a08;
+  --color-red-50: #fdf2f1;
+  --color-red-100: #fae1de;
+  --color-red-200: #f3bfb9;
+  --color-red-300: #e8958c;
+  --color-red-400: #d96b60;
+  --color-red-500: #c8372d;
+  --color-red-600: #b3261e;
+  --color-red-700: #951d17;
+  --color-red-800: #781813;
+  --color-red-900: #5c130f;
+  --color-red-950: #3a0a08;
+
+  /* Warning */
+  --color-amber-50: #fff7e6;
+  --color-amber-100: #fdebc4;
+  --color-amber-200: #f7d58a;
+  --color-amber-300: #ecb94c;
+  --color-amber-400: #d99a1c;
+  --color-amber-500: #c77c0a;
+  --color-amber-600: #a15c00;
+  --color-amber-700: #7f4600;
+  --color-amber-800: #653800;
+  --color-amber-900: #4d2b00;
+  --color-amber-950: #2e1a00;
+
+  /* Semantic roles used by the shadcn-style primitives */
+  --color-background: #f6f7f4;
+  --color-foreground: #171c15;
+  --color-card: #ffffff;
+  --color-card-foreground: #171c15;
+  --color-muted: #eef1ec;
+  --color-muted-foreground: #5f695c;
+  --color-accent: #eef1ec;
+  --color-accent-foreground: #171c15;
+  --color-border: #dfe4dc;
+  --color-input: #c9d0c5;
+  --color-ring: #26683f;
+  --color-primary: #26683f;
+  --color-primary-foreground: #ffffff;
+  --color-destructive: #b3261e;
+}
+
+@layer base {
+  .lucide {
+    stroke-width: 1.75;
+  }
+
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Figures line up in columns; money reads the same width every row. */
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--color-emerald-200);
+    color: var(--color-emerald-950);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-emerald-600);
+    outline-offset: 2px;
+  }
+
+  ::placeholder {
+    color: var(--color-slate-400);
+    opacity: 1;
+  }
+
+  input,
+  select,
+  textarea {
+    accent-color: var(--color-emerald-600);
+  }
+
+  /* Calm, thin scrollbars that belong to the palette. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-slate-300) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

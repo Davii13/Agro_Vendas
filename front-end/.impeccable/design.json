@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T18:00:00.000Z",
+  "title": "Design System: AgroVendas",
+  "extensions": {
+    "colorMeta": {
+      "brand": { "role": "primary", "displayName": "Verde Safra", "canonical": "#26683f", "tonalRamp": ["#0d2114", "#14331f", "#1a432b", "#1f5434", "#26683f", "#3a7d54", "#8fbc9d", "#dcebdf"] },
+      "ground": { "role": "neutral", "displayName": "Papel de Balcão", "canonical": "#f6f7f4", "tonalRamp": ["#0e120d", "#171c15", "#272d25", "#3b4238", "#5f695c", "#c9d0c5", "#eef1ec", "#f7f8f6"] },
+      "error": { "role": "semantic", "displayName": "Tijolo de Erro", "canonical": "#b3261e", "tonalRamp": ["#3a0a08", "#5c130f", "#781813", "#951d17", "#b3261e", "#d96b60", "#f3bfb9", "#fdf2f1"] },
+      "warning": { "role": "semantic", "displayName": "Ocre de Aviso", "canonical": "#a15c00", "tonalRamp": ["#2e1a00", "#4d2b00", "#653800", "#7f4600", "#a15c00", "#d99a1c", "#f7d58a", "#fff7e6"] }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Nome da seção no topo da página." },
+      "body": { "displayName": "Body", "purpose": "Conteúdo, itens de lista e campos." },
+      "figure": { "displayName": "Figure", "purpose": "Totais e contagens, sempre com algarismos tabulares." }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 8px 24px -8px rgb(23 28 21 / 0.22)", "purpose": "Somente camadas flutuantes: diálogos e menus de seleção." }
+    ],
+    "motion": [
+      { "name": "state-fast", "value": "150ms ease", "purpose": "Mudança de estado em botões e itens de navegação." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal: Nova venda, Entrar, Salvar.",
+      "html": "<button class=\"ds-btn-primary\">Nova venda</button>",
+      "css": ".ds-btn-primary { height: 44px; padding: 0 20px; border: 0; border-radius: 4px; background: #26683f; color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; transition: background-color 150ms ease; } .ds-btn-primary:hover { background: #1f5434; } .ds-btn-primary:focus-visible { outline: 2px solid #26683f; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Ações secundárias: Editar, Quitar, Devolver vales.",
+      "html": "<button class=\"ds-btn-outline\">Editar</button>",
+      "css": ".ds-btn-outline { height: 44px; padding: 0 20px; border: 1px solid #c9d0c5; border-radius: 4px; background: #fff; color: #272d25; font-size: 17px; font-weight: 600; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease; } .ds-btn-outline:hover { background: #f7f8f6; border-color: #6f796b; } .ds-btn-outline:focus-visible { outline: 2px solid #26683f; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de formulário com rótulo acima.",
+      "html": "<label class=\"ds-field\"><span>Cliente</span><input class=\"ds-input\" placeholder=\"Pesquise pelo nome\"></label>",
+      "css": ".ds-field { display: grid; gap: 8px; font-size: 15px; font-weight: 600; color: #3b4238; } .ds-input { height: 44px; padding: 0 12px; border: 1px solid #c9d0c5; border-radius: 4px; background: #fff; color: #171c15; font-size: 17px; } .ds-input::placeholder { color: #6f796b; } .ds-input:hover { border-color: #6f796b; } .ds-input:focus-visible { outline: 2px solid #26683f; border-color: #26683f; }"
+    },
+    {
+      "name": "Summary Strip",
+      "kind": "custom",
+      "description": "Faixa de métricas do dia, separada por filetes.",
+      "html": "<dl class=\"ds-strip\"><div><dt>Total vendido</dt><dd>R$ 3.546,00</dd></div><div><dt>Em aberto</dt><dd class=\"ds-owe\">2</dd></div></dl>",
+      "css": ".ds-strip { display: grid; grid-template-columns: 2fr 1fr; margin: 0; border: 1px solid #dfe4dc; border-radius: 6px; background: #fff; } .ds-strip > div { padding: 16px 20px; } .ds-strip > div + div { border-left: 1px solid #dfe4dc; } .ds-strip dt { font-size: 15px; color: #4c5549; } .ds-strip dd { margin: 4px 0 0; font-size: 32px; font-weight: 600; font-variant-numeric: tabular-nums; color: #171c15; } .ds-strip .ds-owe { color: #951d17; }"
+    },
+    {
+      "name": "Payment Status",
+      "kind": "custom",
+      "description": "Estado de pagamento: sempre texto, ícone e cor.",
+      "html": "<span class=\"ds-status ds-status-owe\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg> Devendo</span>",
+      "css": ".ds-status { display: inline-flex; align-items: center; gap: 6px; font-size: 17px; font-weight: 600; } .ds-status-owe { color: #951d17; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Caderno de Balcão",
+    "overview": "AgroVendas é um livro-caixa, não um painel. O produto é a lista de vendas do dia: linhas separadas por filetes, dinheiro em algarismos tabulares, estado sempre escrito. O usuário principal é uma pessoa idosa, em pé no mercado, com o celular em uma mão e sol na tela.",
+    "keyCharacteristics": [
+      "Planilha, não vitrine: linhas com filetes em vez de cartões empilhados.",
+      "Dinheiro e contagens em algarismos tabulares.",
+      "Estado = texto + ícone + cor.",
+      "Alvos de toque de pelo menos 40 px; ação principal do celular fixa no rodapé.",
+      "Raios pequenos e nenhuma sombra em repouso."
+    ],
+    "rules": [
+      { "name": "The Verde Is A Tool Rule", "body": "Verde marca ação, seleção e \"pago\". Não decora cabeçalhos nem fundos de seção.", "section": "colors" },
+      { "name": "The Never Color Alone Rule", "body": "Todo estado leva palavra e ícone. A cor reforça, não informa.", "section": "colors" },
+      { "name": "The Tabular Figures Rule", "body": "Dinheiro, quantidades e datas usam tabular-nums.", "section": "typography" },
+      { "name": "The Flat At Rest Rule", "body": "Nada tem sombra em repouso.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do manter o dinheiro em tabular-nums e alinhado à direita nas tabelas.",
+      "Do escrever o estado por extenso com ícone.",
+      "Do usar altura de 44 px para qualquer controle tocável."
+    ],
+    "donts": [
+      "Don't usar gradiente, desfoque decorativo, sombra em repouso ou faixa colorida na lateral de um bloco.",
+      "Don't colocar sobretítulo em caixa alta acima de um título.",
+      "Don't deixar a cor sozinha indicar dívida, atraso ou sucesso."
+    ]
+  }
+}

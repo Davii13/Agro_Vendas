@@ -1,11 +1,13 @@
 'use client'
 
 import React, { createContext, useState, useEffect, useCallback } from 'react'
+import { API_BASE } from '@/lib/api'
 
 export interface User {
   id: number
   email: string
   nome: string
+  role?: 'ADMIN' | 'OPERADOR'
 }
 
 export interface AuthContextType {
@@ -57,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, senha: string, manterConectado = false) => {
     try {
-      const response = await fetch('http://localhost:8080/api/auth/login', {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false
       }
 
-      const response = await fetch('http://localhost:8080/api/auth/refresh', {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const refreshTokenValue = getRefreshToken()
       if (refreshTokenValue) {
-        await fetch('http://localhost:8080/api/auth/logout', {
+        await fetch(`${API_BASE}/auth/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
