@@ -139,6 +139,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (storedUser && accessToken) {
             const userData = JSON.parse(storedUser)
             setUser(userData)
+
+            // Sessions started before roles existed have no role saved: ask the server who this is.
+            if (!userData.role) {
+              try {
+                const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } })
+                if (res.ok) {
+                  const atual = await res.json()
+                  localStorage.setItem('user', JSON.stringify(atual))
+                  setUser(atual)
+                }
+              } catch {
+                // offline: keep the saved user, the role will be fetched next time
+              }
+            }
           } else {
             setUser(null)
           }

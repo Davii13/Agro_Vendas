@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LogoutButton } from "@/components/LogoutButton"
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog"
+import { UsersPanel } from "@/components/UsersPanel"
 import { gerarHistoricoClienteHtml } from "@/lib/customerHistoryHtml"
 import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,7 @@ import {
   Menu,
   Apple,
   MinusCircle,
+  ShieldCheck,
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import { apiCall } from "@/lib/api"
@@ -1031,6 +1033,10 @@ export default function AgroVendasPage() {
     { key: "clientes", label: "Clientes", icon: Users, onClick: () => { setActiveSection("clientes"); loadCustomers() } },
     { key: "estoque", label: "Estoque & Comparativo", icon: Layers, onClick: () => setActiveSection("estoque") },
     { key: "caixas", label: "Controle de Caixas 6424", icon: Package, onClick: () => setActiveSection("caixas") },
+    // Account management exists only for administrators (the server enforces it as well).
+    ...(user?.role === "ADMIN"
+      ? [{ key: "usuarios", label: "Usuários e acessos", icon: ShieldCheck, onClick: () => setActiveSection("usuarios") }]
+      : []),
   ]
 
   const sectionTitle: Record<string, string> = {
@@ -1040,6 +1046,7 @@ export default function AgroVendasPage() {
     clientes: "Cadastro de Clientes",
     estoque: "Estoque Consolidado do Dia",
     caixas: "Gestão de Caixas 6424",
+    usuarios: "Usuários e acessos",
   }
 
   return (
@@ -1344,6 +1351,8 @@ export default function AgroVendasPage() {
               </Button>
             </div>
           )}
+
+          {activeSection === "usuarios" && user?.role === "ADMIN" && <UsersPanel />}
 
           {activeSection === "clientes" && (
             <div className="space-y-6">

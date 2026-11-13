@@ -19,7 +19,11 @@ import java.util.stream.Collectors;
 @Transactional
 public class UsuarioService {
 
-    private static final Pattern EMAIL = Pattern.compile("^[^@\\s]{1,64}@[^@\\s]{1,120}\\.[^@\\s]{2,}$");
+    /**
+     * The login does not have to be an e-mail address: someone without one can use a plain user name.
+     * Only a safe alphabet is allowed (no spaces, no markup characters).
+     */
+    private static final Pattern LOGIN = Pattern.compile("^[A-Za-z0-9._@+\\-]{3,150}$");
 
     private final UsuarioRepository usuarioRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -31,16 +35,17 @@ public class UsuarioService {
 
     public Usuario criarUsuario(String email, String senha, String nome, Role role) {
         String emailLimpo = email == null ? "" : email.trim();
-        if (!EMAIL.matcher(emailLimpo).matches() || emailLimpo.length() > 150) {
-            throw new IllegalArgumentException("E-mail inválido");
+        if (!LOGIN.matcher(emailLimpo).matches()) {
+            throw new IllegalArgumentException(
+                    "Login inválido: use de 3 a 150 caracteres entre letras, números e . _ - @ + (sem espaços)");
         }
         String nomeLimpo = nome == null ? "" : nome.trim();
         if (nomeLimpo.isEmpty() || nomeLimpo.length() > 150) {
             throw new IllegalArgumentException("Nome é obrigatório e deve ter até 150 caracteres");
         }
         PasswordPolicy.validar(senha, emailLimpo);
-        if (usuarioRepository.findByEmail(emailLimpo).isPresent()) {
-            throw new IllegalArgumentException("E-mail já cadastrado");
+        if (usuarioRepository.findByEmailIgnoreCase(emailLimpo).isPresent()) {
+            throw new IllegalArgumentException("Já existe um usuário com este login");
         }
 
         Usuario usuario = new Usuario();

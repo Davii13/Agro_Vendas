@@ -53,7 +53,7 @@ public class AdminInitializer implements ApplicationRunner {
             return;
         }
 
-        usuarioRepository.findByEmail(adminEmail).ifPresentOrElse(usuario -> {
+        usuarioRepository.findByEmailIgnoreCase(adminEmail).ifPresentOrElse(usuario -> {
             usuario.setRole(Role.ADMIN);
             usuario.setAtivo(true);
             usuarioRepository.save(usuario);

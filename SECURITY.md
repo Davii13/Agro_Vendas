@@ -69,7 +69,7 @@ Um defeito só apareceu em servidor real: com `response.sendError`, todo 403 vir
 
 1. **Segredos.** Copie `.env.example` para `.env` (o git ignora) e gere cada valor com `openssl rand -base64 48`; `JWT_SECRET` com `openssl rand -base64 64`. Nunca coloque esses valores no código nem no repositório.
 2. **Primeiro administrador.** Defina `ADMIN_EMAIL` (e `ADMIN_PASSWORD` se a conta ainda não existir). Só atua enquanto não houver ADMIN ativo.
-3. **Criar usuários** (só ADMIN). Entre, guarde o `accessToken` e chame:
+3. **Criar usuários** (só ADMIN). O jeito mais simples é o painel **"Usuários e acessos"** no menu do site (aparece só para administradores): criar, editar, gerar senha provisória, redefinir senha e desativar. O login pode ser um e-mail **ou um nome de usuário simples** (3 a 150 caracteres entre letras, números e `. _ - @ +`, sem espaços), e maiúsculas e minúsculas tanto faz. Pela API:
    ```
    curl -X POST https://SEU-DOMINIO/api/usuarios \
      -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \

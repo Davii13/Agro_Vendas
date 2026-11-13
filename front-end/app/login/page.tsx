@@ -74,7 +74,7 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Entrar</h1>
-          <p className="mt-1 text-base text-slate-600">Use o e-mail e a senha do seu cadastro.</p>
+          <p className="mt-1 text-base text-slate-600">Use o usuário (ou e-mail) e a senha do seu cadastro.</p>
 
           <form onSubmit={handleSubmit} className="mt-7 space-y-5" noValidate>
             {erro && (
@@ -88,14 +88,15 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="email">Usuário ou e-mail</Label>
               <Input
                 id="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
+                type="text"
+                autoComplete="username"
                 autoCapitalize="none"
-                placeholder="nome@exemplo.com"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="seu usuário ou e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

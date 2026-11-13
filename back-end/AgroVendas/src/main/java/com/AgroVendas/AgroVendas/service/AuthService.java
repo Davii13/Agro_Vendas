@@ -65,7 +65,7 @@ public class AuthService {
             throw new AuthException(MENSAGEM_LOGIN);
         }
 
-        Optional<Usuario> encontrado = usuarioRepository.findByEmail(email);
+        Optional<Usuario> encontrado = usuarioRepository.findByEmailIgnoreCase(email);
         boolean senhaConfere = passwordEncoder.matches(senha, encontrado.map(Usuario::getSenhaHash).orElse(hashFicticio));
 
         if (encontrado.isEmpty() || !senhaConfere || !encontrado.get().estaAtivo()) {
