@@ -1,12 +1,82 @@
-# Render Blueprint. For now only the front-end; the API and the database are added in the next step.
+# Render Blueprint: PostgreSQL + API (Spring Boot, Docker) + front-end (Next.js).
+#
+# Everything is on the free plans, which have limits:
+#   - the free PostgreSQL EXPIRES about 30 days after creation (data is lost unless upgraded);
+#   - the free web services sleep after ~15 minutes without visits and take ~1 minute to wake up;
+#   - the free web services have 512 MB of memory.
+# Change `plan:` to a paid plan before using real data.
+
+databases:
+  - name: agrovendas-db
+    databaseName: agrovendas
+    # The application's own role. Render's database user is not a superuser.
+    user: agrovendas_app
+    plan: free
+    region: oregon
+    postgresMajorVersion: "17"
+    # No outside access: only services in the same region/account reach the database.
+    ipAllowList: []
+
 services:
+  # ------------------------------------------------------------------ API
+  - type: web
+    name: agrovendas-api
+    runtime: docker
+    region: oregon
+    plan: free
+    dockerfilePath: ./back-end/AgroVendas/Dockerfile
+    dockerContext: ./back-end/AgroVendas
+    # Public and reveals nothing: answers {"status":"UP"} so Render knows the app is alive.
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # Database, handed over by Render (internal network).
+      - key: DB_HOST
+        fromDatabase:
+          name: agrovendas-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: agrovendas-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: agrovendas-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: agrovendas-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: agrovendas-db
+          property: password
+      # Secrets you type in the Render dashboard (never in this file):
+      #   JWT_SECRET            openssl rand -base64 64   (use a NEW one, not the one from your local .env)
+      #   CORS_ALLOWED_ORIGINS  the address of the front-end, e.g. https://agrovendas-front-xxxx.onrender.com
+      #   ADMIN_EMAIL           e-mail of the first administrator
+      #   ADMIN_PASSWORD        its password (8+ characters, letters and numbers); remove it after the first login
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Render's load balancer sits in front: read the real client address (for login rate limiting).
+      - key: FORWARD_HEADERS_STRATEGY
+        value: native
+      # Keep the JVM inside the 512 MB of the plan.
+      - key: JAVA_TOOL_OPTIONS
+        value: -XX:MaxRAMPercentage=70 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -XX:MaxMetaspaceSize=128m
+
+  # ------------------------------------------------------------------ Front-end
   - type: web
     name: agrovendas-front
     runtime: node
     # The repository is a monorepo: the front-end lives in its own folder.
     rootDir: front-end
-    # "free" sleeps after ~15 minutes without visits (the first visit then takes ~1 minute).
-    # Use "starter" for an always-on service.
     plan: free
     # Tailwind and TypeScript are devDependencies and are needed to build, so install them too.
     buildCommand: npm ci --include=dev && npm run build
@@ -16,7 +86,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22
-      # Public address of the API, as the browser sees it (ends in /api). It is baked into the
-      # build, so after it changes the front-end must be redeployed. Render asks for it on creation.
+      # Public address of the API, as the browser sees it (ends in /api), e.g.
+      # https://agrovendas-api-xxxx.onrender.com/api. It is baked into the build, so after it
+      # changes the front-end must be redeployed.
       - key: NEXT_PUBLIC_API_URL
         sync: false
