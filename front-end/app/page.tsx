@@ -111,8 +111,18 @@ async function mensagemDoServidor(res: Response, padrao: string): Promise<string
 
 const saleTotal = (sale: Sale) => sale.mercadorias.reduce((sum, m) => sum + m.qtde * m.valor, 0)
 
+// A sale can be recorded now and priced later; until then it has no total.
+const precoPendente = (sale: Sale) => saleTotal(sale) <= 0
+
 // State is always text plus icon, never color alone.
 function PaymentStatus({ sale }: { sale: Sale }) {
+  if (precoPendente(sale)) {
+    return (
+      <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700">
+        <MinusCircle className="h-4 w-4" aria-hidden /> Aguardando preço
+      </span>
+    )
+  }
   if (sale.pagamentoVerduras === "Pago") {
     return (
       <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
@@ -259,6 +269,23 @@ export default function AgroVendasPage() {
   const [saleCustomerId, setSaleCustomerId] = useState<number | null>(null)
   const [quickCustomerForm, setQuickCustomerForm] = useState({ nome: "", telefone: "", cpfCnpj: "", localizacao: "", observacoes: "" })
   const [saleProducts, setSaleProducts] = useState<ProductItem[]>([])
+
+  // Derived from the items being typed: how many boxes the sale has and whether it has a price yet.
+  const totalCaixasVenda = saleProducts.reduce((sum, p) => sum + (p.qtde || 0), 0)
+  const totalVendaForm = saleProducts.reduce((sum, p) => sum + (p.qtde || 0) * (p.valor || 0), 0)
+  const vendaSemPreco = totalVendaForm <= 0
+
+  // With the 6424 model every box sold is a 6424 box, so the count follows the items.
+  // With "Misto" it is typed, but can never exceed the boxes in the sale; paid boxes never exceed it either.
+  useEffect(() => {
+    setSaleFormData((prev) => {
+      if (prev.modeloCaixa === "Papelão") return prev
+      const qtde = prev.modeloCaixa === "6424" ? totalCaixasVenda : Math.min(prev.qtdeCaixas6424, totalCaixasVenda)
+      const pagas = Math.min(prev.caixasPagasVale, qtde)
+      if (qtde === prev.qtdeCaixas6424 && pagas === prev.caixasPagasVale) return prev
+      return { ...prev, qtdeCaixas6424: qtde, caixasPagasVale: pagas }
+    })
+  }, [saleFormData.modeloCaixa, totalCaixasVenda])
 
   const [supplierFormData, setSupplierFormData] = useState({
     nome: "",
@@ -454,11 +481,14 @@ export default function AgroVendasPage() {
       return
     }
 
-    // Auto-calculate crates owed for model 6424
+    // The server recomputes these; they are sent so the request is complete and the form stays consistent.
+    const qtde6424 = saleFormData.modeloCaixa === "6424" ? totalCaixasVenda : saleFormData.qtdeCaixas6424
     let calculatedOwed = 0
     if (saleFormData.modeloCaixa === "6424" || saleFormData.modeloCaixa === "Misto") {
-      calculatedOwed = Math.max(0, saleFormData.qtdeCaixas6424 - saleFormData.caixasPagasVale)
+      calculatedOwed = Math.max(0, qtde6424 - saleFormData.caixasPagasVale)
     }
+    // Without a price there is nothing to pay yet: the sale is recorded as "Devendo".
+    const pagamento = vendaSemPreco ? "Devendo" : saleFormData.pagamentoVerduras
 
     const payload: Sale = {
       id: editingSale?.id || undefined,
@@ -466,11 +496,11 @@ export default function AgroVendasPage() {
       cliente: saleFormData.cliente,
       clienteId: saleCustomerId,
       modeloCaixa: saleFormData.modeloCaixa,
-      qtdeCaixas6424: saleFormData.modeloCaixa !== "Papelão" ? saleFormData.qtdeCaixas6424 : 0,
+      qtdeCaixas6424: saleFormData.modeloCaixa !== "Papelão" ? qtde6424 : 0,
       caixasPagasVale: saleFormData.modeloCaixa !== "Papelão" ? saleFormData.caixasPagasVale : 0,
       caixasDevendoVale: calculatedOwed,
-      pagamentoVerduras: saleFormData.pagamentoVerduras,
-      valorPago: saleFormData.pagamentoVerduras === "Parcial" ? saleFormData.valorPago : (saleFormData.pagamentoVerduras === "Pago" ? 99999 : 0), // Note: standard handling
+      pagamentoVerduras: pagamento,
+      valorPago: pagamento === "Parcial" ? saleFormData.valorPago : 0,
       mercadorias: saleProducts,
     }
 
@@ -1182,14 +1212,14 @@ export default function AgroVendasPage() {
                           <h3 className="text-lg font-semibold leading-snug text-slate-900">{sale.cliente}</h3>
                           <p className="mt-0.5 text-base"><PaymentStatus sale={sale} /></p>
                         </div>
-                        <p className="shrink-0 tabular-nums text-xl font-semibold text-slate-900">{brl(saleTotal(sale))}</p>
+                        <p className="shrink-0 tabular-nums text-xl font-semibold text-slate-900">{precoPendente(sale) ? "Preço a definir" : brl(saleTotal(sale))}</p>
                       </div>
 
                       <ul className="space-y-1 text-base text-slate-700">
                         {sale.mercadorias.map((m, idx) => (
                           <li key={idx} className="flex justify-between gap-3">
                             <span><span className="font-medium text-slate-900">{m.nome}</span> &middot; {m.qtde} cx</span>
-                            <span className="tabular-nums text-slate-600">{brl(m.qtde * m.valor)}</span>
+                            <span className="tabular-nums text-slate-600">{m.valor > 0 ? brl(m.qtde * m.valor) : "sem preço"}</span>
                           </li>
                         ))}
                       </ul>
@@ -1253,14 +1283,14 @@ export default function AgroVendasPage() {
                               {sale.mercadorias.map((m, idx) => (
                                 <li key={idx} className="text-slate-700">
                                   <span className="font-medium text-slate-900">{m.nome}</span>
-                                  <span className="whitespace-nowrap text-slate-600"> &middot; {m.qtde} cx &times; {brl(m.valor)}</span>
+                                  <span className="whitespace-nowrap text-slate-600"> &middot; {m.qtde} cx{m.valor > 0 ? <> &times; {brl(m.valor)}</> : " · sem preço"}</span>
                                 </li>
                               ))}
                             </ul>
                           </td>
                           <td className="px-4 py-4 text-sm"><BoxVale sale={sale} onReturn={() => openReturnBoxModal(sale)} /></td>
                           <td className="whitespace-nowrap px-4 py-4 text-right tabular-nums text-lg font-semibold text-slate-900">
-                            {brl(saleTotal(sale))}
+                            {precoPendente(sale) ? "A definir" : brl(saleTotal(sale))}
                           </td>
                           <td className="px-4 py-4"><PaymentStatus sale={sale} /></td>
                           <td className="px-4 py-3">
@@ -1942,15 +1972,14 @@ export default function AgroVendasPage() {
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-slate-500">Valor Unitário (R$)</Label>
+                          <Label className="text-xs text-slate-500">Valor Unitário (R$), pode ficar em branco</Label>
                           <Input
                             type="number"
                             step="0.01"
                             min="0"
                             value={prod.valor || ""}
                             onChange={(e) => updateSaleProductItem(idx, "valor", parseFloat(e.target.value) || 0)}
-                            placeholder="Ex: 45.00"
-                            required
+                            placeholder="A definir"
                           />
                         </div>
                       </div>
@@ -1992,12 +2021,17 @@ export default function AgroVendasPage() {
               {(saleFormData.modeloCaixa === "6424" || saleFormData.modeloCaixa === "Misto") && (
                 <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-600">Qtd Caixas 6424</Label>
+                    <Label className="text-xs text-slate-600">
+                      Qtd Caixas 6424{saleFormData.modeloCaixa === "6424" ? " (automático)" : ""}
+                    </Label>
                     <Input
                       type="number"
                       min="0"
+                      max={totalCaixasVenda}
+                      readOnly={saleFormData.modeloCaixa === "6424"}
+                      className={saleFormData.modeloCaixa === "6424" ? "bg-slate-100" : undefined}
                       value={saleFormData.qtdeCaixas6424 || ""}
-                      onChange={(e) => setSaleFormData({ ...saleFormData, qtdeCaixas6424: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setSaleFormData({ ...saleFormData, qtdeCaixas6424: Math.min(parseInt(e.target.value) || 0, totalCaixasVenda) })}
                     />
                   </div>
                   <div className="space-y-1">
@@ -2005,12 +2039,13 @@ export default function AgroVendasPage() {
                     <Input
                       type="number"
                       min="0"
+                      max={saleFormData.qtdeCaixas6424}
                       value={saleFormData.caixasPagasVale || ""}
-                      onChange={(e) => setSaleFormData({ ...saleFormData, caixasPagasVale: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setSaleFormData({ ...saleFormData, caixasPagasVale: Math.min(parseInt(e.target.value) || 0, saleFormData.qtdeCaixas6424) })}
                     />
                   </div>
                   <div className="col-span-2 text-xs font-bold text-rose-600">
-                    Owed (Devendo): {Math.max(0, saleFormData.qtdeCaixas6424 - saleFormData.caixasPagasVale)} caixas
+                    Devendo: {Math.max(0, saleFormData.qtdeCaixas6424 - saleFormData.caixasPagasVale)} caixas
                   </div>
                 </div>
               )}
@@ -2021,8 +2056,9 @@ export default function AgroVendasPage() {
               <div className="space-y-1.5">
                 <Label htmlFor="sale-payment" className="text-emerald-950">Pagamento das Verduras</Label>
                 <Select
-                  value={saleFormData.pagamentoVerduras}
+                  value={vendaSemPreco ? "Devendo" : saleFormData.pagamentoVerduras}
                   onValueChange={(val) => setSaleFormData({ ...saleFormData, pagamentoVerduras: val })}
+                  disabled={vendaSemPreco}
                 >
                   <SelectTrigger id="sale-payment">
                     <SelectValue placeholder="Selecione..." />
@@ -2035,7 +2071,13 @@ export default function AgroVendasPage() {
                 </Select>
               </div>
 
-              {saleFormData.pagamentoVerduras === "Parcial" && (
+              {vendaSemPreco && (
+                <p className="text-sm text-amber-700 md:col-span-2">
+                  Sem preço informado, a venda fica como &ldquo;Devendo&rdquo; até você editar e definir o valor.
+                </p>
+              )}
+
+              {!vendaSemPreco && saleFormData.pagamentoVerduras === "Parcial" && (
                 <div className="space-y-1.5">
                   <Label htmlFor="sale-pago" className="text-emerald-950">Valor Pago Adiantado (R$)</Label>
                   <Input

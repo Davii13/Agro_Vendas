@@ -25,7 +25,7 @@ public class VendaMercadoriaDTO {
     @Max(value = 100000, message = "quantidade acima do limite")
     private Integer qtde;
 
-    @NotNull(message = "informe o valor unitário")
+    /** Optional: a sale can be recorded now and priced later. Empty means "not priced yet". */
     @DecimalMin(value = "0.00", message = "o valor unitário não pode ser negativo")
     @DecimalMax(value = "1000000.00", message = "valor unitário acima do limite")
     @Digits(integer = 7, fraction = 2, message = "valor com no máximo 2 casas decimais")

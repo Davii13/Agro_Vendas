@@ -22,6 +22,7 @@ import java.util.List;
 public class VendaService {
 
     private static final String PAPELAO = "Papelão";
+    private static final String MISTO = "Misto";
 
     private final VendaRepository vendaRepo;
     private final ClienteRepository clienteRepo;
@@ -35,9 +36,10 @@ public class VendaService {
 
     /**
      * Saves a sale. The money rules live here and nowhere else:
-     * the total is the sum of quantity x unit price, the amount paid follows from the payment
-     * choice, the stored status is derived from those two numbers, and the boxes still owed are
-     * boxes sold minus boxes paid. Whatever the client sends for those derived fields is ignored.
+     * the total is the sum of quantity x unit price (a sale may be saved without prices and priced
+     * later), the amount paid follows from the payment choice, the stored status is derived from
+     * those two numbers, and the boxes still owed are boxes sold minus boxes paid. Whatever the
+     * client sends for those derived fields is ignored.
      */
     @Transactional
     public Venda salvar(VendaDTO dto) {
@@ -64,10 +66,44 @@ public class VendaService {
         }
         venda.setModeloCaixa(dto.getModeloCaixa());
 
-        // boxes
-        boolean usaCaixa6424 = !PAPELAO.equals(dto.getModeloCaixa());
-        int vendidas = usaCaixa6424 ? dto.getQtdeCaixas6424() : 0;
-        int pagas = usaCaixa6424 ? dto.getCaixasPagasVale() : 0;
+        // items and total (the unit price is optional: a missing price counts as zero)
+        BigDecimal total = BigDecimal.ZERO;
+        int totalCaixas = 0;
+        for (VendaMercadoriaDTO m : dto.getMercadorias()) {
+            Mercadoria mercadoria = mercadoriaRepo.findByNomeIgnoreCase(m.getNome().trim())
+                    .orElseThrow(() -> new IllegalArgumentException("Mercadoria não cadastrada: " + m.getNome()));
+            BigDecimal valor = m.getValor() == null ? BigDecimal.ZERO : m.getValor();
+
+            VendaMercadoria vm = new VendaMercadoria();
+            vm.setNome(mercadoria.getNome());
+            vm.setQtde(m.getQtde());
+            vm.setValor(valor);
+            vm.setVenda(venda);
+            venda.getMercadorias().add(vm);
+
+            total = total.add(valor.multiply(BigDecimal.valueOf(m.getQtde())));
+            totalCaixas += m.getQtde();
+        }
+        total = total.setScale(2, RoundingMode.HALF_UP);
+
+        // boxes: with the 6424 model every box sold is a 6424 box, so the count comes from the items;
+        // "Misto" mixes cardboard and 6424, so the count is given but can never exceed the boxes sold
+        int vendidas;
+        int pagas;
+        if (PAPELAO.equals(dto.getModeloCaixa())) {
+            vendidas = 0;
+            pagas = 0;
+        } else {
+            if (MISTO.equals(dto.getModeloCaixa())) {
+                vendidas = dto.getQtdeCaixas6424();
+                if (vendidas > totalCaixas) {
+                    throw new IllegalArgumentException("As caixas 6424 não podem ser mais que o total de caixas da venda");
+                }
+            } else {
+                vendidas = totalCaixas;
+            }
+            pagas = dto.getCaixasPagasVale();
+        }
         if (pagas > vendidas) {
             throw new IllegalArgumentException("As caixas pagas com vale não podem ser mais que as caixas 6424 vendidas");
         }
@@ -75,30 +111,11 @@ public class VendaService {
         venda.setCaixasPagasVale(pagas);
         venda.setCaixasDevendoVale(vendidas - pagas);
 
-        // items and total
-        BigDecimal total = BigDecimal.ZERO;
-        for (VendaMercadoriaDTO m : dto.getMercadorias()) {
-            Mercadoria mercadoria = mercadoriaRepo.findByNomeIgnoreCase(m.getNome().trim())
-                    .orElseThrow(() -> new IllegalArgumentException("Mercadoria não cadastrada: " + m.getNome()));
-
-            VendaMercadoria vm = new VendaMercadoria();
-            vm.setNome(mercadoria.getNome());
-            vm.setQtde(m.getQtde());
-            vm.setValor(m.getValor());
-            vm.setVenda(venda);
-            venda.getMercadorias().add(vm);
-
-            total = total.add(m.getValor().multiply(BigDecimal.valueOf(m.getQtde())));
-        }
-        total = total.setScale(2, RoundingMode.HALF_UP);
-        if (total.signum() <= 0) {
-            throw new IllegalArgumentException("O total da venda deve ser maior que zero");
-        }
-
-        // payment: the choice decides the amount, the amount decides the stored status
-        BigDecimal pago = valorPago(dto, total);
+        // payment: without a price there is nothing to pay yet, so the sale stays as "Devendo";
+        // otherwise the choice decides the amount and the amount decides the stored status
+        BigDecimal pago = total.signum() == 0 ? BigDecimal.ZERO.setScale(2) : valorPago(dto, total);
         venda.setValorPago(pago);
-        venda.setPagamentoVerduras(situacao(pago, total));
+        venda.setPagamentoVerduras(total.signum() == 0 ? "Devendo" : situacao(pago, total));
 
         return vendaRepo.save(venda);
     }

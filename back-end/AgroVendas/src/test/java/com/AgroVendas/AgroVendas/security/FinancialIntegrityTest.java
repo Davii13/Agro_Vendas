@@ -103,13 +103,9 @@ class FinancialIntegrityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Total zero, venda sem itens, mercadoria desconhecida e campos inválidos são rejeitados")
+    @DisplayName("Venda sem itens, mercadoria desconhecida e campos inválidos são rejeitados")
     void vendaInconsistenteEhRejeitada() throws Exception {
         Map<String, Object> v = venda();
-        v.put("mercadorias", List.of(item("melao", 10, 0)));
-        salvarVenda(v, 400);
-
-        v = venda();
         v.put("mercadorias", List.of());
         salvarVenda(v, 400);
 
@@ -134,6 +130,63 @@ class FinancialIntegrityTest extends AbstractIntegrationTest {
         salvarVenda(v, 400);
 
         assertThat(vendas.count()).isZero();
+    }
+
+    // ------------------------------------------------------------------ sale without a price
+
+    @Test
+    @DisplayName("Venda sem preço é aceita e fica como Devendo, mesmo que o cliente peça Pago ou Parcial")
+    void vendaSemPrecoFicaDevendo() throws Exception {
+        Object[] semPreco = {0, null};
+        for (Object valor : semPreco) {
+            for (String pedido : new String[]{"Pago", "Parcial", "Devendo"}) {
+                Map<String, Object> v = venda();
+                v.put("mercadorias", List.of(item("melao", 10, valor)));
+                v.put("pagamentoVerduras", pedido);
+                v.put("valorPago", 300);
+                JsonNode salva = salvarVenda(v, 200);
+                assertThat(salva.get("pagamentoVerduras").asText()).as("pedido=%s valor=%s", pedido, valor).isEqualTo("Devendo");
+                assertThat(new BigDecimal(salva.get("valorPago").asText())).isEqualByComparingTo("0");
+                assertThat(salva.get("mercadorias").get(0).get("valor").decimalValue()).isEqualByComparingTo("0");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Depois é possível definir o preço editando a venda, e aí o pagamento passa a valer")
+    void precoPodeSerDefinidoDepois() throws Exception {
+        Map<String, Object> v = venda();
+        v.put("mercadorias", List.of(item("melao", 10, null)));
+        v.put("pagamentoVerduras", "Pago");
+        JsonNode semPreco = salvarVenda(v, 200);
+        long id = semPreco.get("id").asLong();
+        assertThat(semPreco.get("pagamentoVerduras").asText()).isEqualTo("Devendo");
+
+        Map<String, Object> comPreco = venda();
+        comPreco.put("id", id);
+        comPreco.put("mercadorias", List.of(item("melao", 10, 50)));
+        comPreco.put("pagamentoVerduras", "Pago");
+        JsonNode depois = salvarVenda(comPreco, 200);
+        assertThat(depois.get("id").asLong()).isEqualTo(id);
+        assertThat(depois.get("pagamentoVerduras").asText()).isEqualTo("Pago");
+        assertThat(new BigDecimal(depois.get("valorPago").asText())).isEqualByComparingTo("500");
+        assertThat(vendas.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Preço negativo continua rejeitado, e uma venda com um item pago e outro sem preço usa só o que tem preço")
+    void precoNegativoContinuaRejeitadoEItemSemPrecoNaoQuebraOTotal() throws Exception {
+        Map<String, Object> v = venda();
+        v.put("mercadorias", List.of(item("melao", 10, -1)));
+        salvarVenda(v, 400);
+
+        v = venda();
+        v.put("mercadorias", List.of(item("melao", 10, 50), item("abacate", 4, null)));
+        v.put("pagamentoVerduras", "Pago");
+        JsonNode salva = salvarVenda(v, 200);
+        // only the priced item counts: 10 x 50 = 500
+        assertThat(new BigDecimal(salva.get("valorPago").asText())).isEqualByComparingTo("500");
+        assertThat(salva.get("pagamentoVerduras").asText()).isEqualTo("Pago");
     }
 
     // ------------------------------------------------------------------ payment status is computed
@@ -204,6 +257,49 @@ class FinancialIntegrityTest extends AbstractIntegrationTest {
 
         v.put("caixasDevendoVale", 999);
         assertThat(salvarVenda(v, 200).get("caixasDevendoVale").asInt()).isEqualTo(6);
+    }
+
+    @Test
+    @DisplayName("Modelo 6424: a quantidade de caixas 6424 vem dos itens, seja qual for o número enviado")
+    void caixas6424VemDosItens() throws Exception {
+        for (int enviado : new int[]{0, 3, 10, 999}) {
+            Map<String, Object> v = venda();
+            v.put("modeloCaixa", "6424");
+            v.put("mercadorias", List.of(item("melao", 7, 50), item("abacate", 5, 10)));
+            v.put("qtdeCaixas6424", enviado);
+            v.put("caixasPagasVale", 2);
+            JsonNode salva = salvarVenda(v, 200);
+            assertThat(salva.get("qtdeCaixas6424").asInt()).as("enviado=%d", enviado).isEqualTo(12);
+            assertThat(salva.get("caixasDevendoVale").asInt()).isEqualTo(10);
+        }
+    }
+
+    @Test
+    @DisplayName("Modelo 6424: pagas com vale não podem passar das caixas dos itens")
+    void valePagoNaoPassaDasCaixasDosItens() throws Exception {
+        Map<String, Object> v = venda();
+        v.put("modeloCaixa", "6424");
+        v.put("mercadorias", List.of(item("melao", 4, 50)));
+        v.put("caixasPagasVale", 5);
+        salvarVenda(v, 400);
+        v.put("caixasPagasVale", 4);
+        assertThat(salvarVenda(v, 200).get("caixasDevendoVale").asInt()).isZero();
+    }
+
+    @Test
+    @DisplayName("Modelo Misto: a quantidade de 6424 é informada, mas nunca passa do total de caixas")
+    void mistoNaoPassaDoTotalDeCaixas() throws Exception {
+        Map<String, Object> v = venda();
+        v.put("modeloCaixa", "Misto");
+        v.put("mercadorias", List.of(item("melao", 10, 50)));
+        v.put("qtdeCaixas6424", 6);
+        v.put("caixasPagasVale", 2);
+        JsonNode salva = salvarVenda(v, 200);
+        assertThat(salva.get("qtdeCaixas6424").asInt()).isEqualTo(6);
+        assertThat(salva.get("caixasDevendoVale").asInt()).isEqualTo(4);
+
+        v.put("qtdeCaixas6424", 11);
+        salvarVenda(v, 400);
     }
 
     @Test
