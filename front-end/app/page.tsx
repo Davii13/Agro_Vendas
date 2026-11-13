@@ -268,11 +268,17 @@ export default function AgroVendasPage() {
     valorPago: 0,
   })
   const [saleCustomerQuery, setSaleCustomerQuery] = useState("")
+  // The arrow next to the customer field opens the full list of registered customers.
+  const [mostrarTodosClientes, setMostrarTodosClientes] = useState(false)
   const [saleCustomerId, setSaleCustomerId] = useState<number | null>(null)
   const [quickCustomerForm, setQuickCustomerForm] = useState({ nome: "", telefone: "", cpfCnpj: "", localizacao: "", observacoes: "" })
   const [saleProducts, setSaleProducts] = useState<ProductItem[]>([])
 
   // Derived from the items being typed: how many boxes the sale has and whether it has a price yet.
+  useEffect(() => {
+    if (!saleModalOpen) setMostrarTodosClientes(false)
+  }, [saleModalOpen])
+
   const totalCaixasVenda = saleProducts.reduce((sum, p) => sum + (p.qtde || 0), 0)
   const totalVendaForm = saleProducts.reduce((sum, p) => sum + (p.qtde || 0) * (p.valor || 0), 0)
   const vendaSemPreco = totalVendaForm <= 0
@@ -524,7 +530,17 @@ export default function AgroVendasPage() {
     }
   }
 
+  const alternarListaClientes = () => {
+    if (mostrarTodosClientes) {
+      setMostrarTodosClientes(false)
+      return
+    }
+    loadCustomers("")
+    setMostrarTodosClientes(true)
+  }
+
   const selectSaleCustomer = (customer: Customer) => {
+    setMostrarTodosClientes(false)
     setSaleCustomerId(customer.id)
     setSaleCustomerQuery(customer.nome)
     setSaleFormData(prev => ({ ...prev, cliente: customer.nome }))
@@ -1928,8 +1944,56 @@ export default function AgroVendasPage() {
             
             <div className="space-y-2 relative">
               <div className="flex flex-wrap items-center justify-between gap-2"><Label htmlFor="sale-cliente" className="text-emerald-950">Cliente</Label><div className="flex flex-wrap gap-2"><Button type="button" variant="ghost" size="sm" onClick={setUnknownCustomer}>Cliente desconhecido</Button><Button type="button" variant="outline" size="sm" onClick={() => { setQuickCustomerForm({ nome: saleCustomerQuery, telefone: "", cpfCnpj: "", localizacao: "", observacoes: "" }); setCustomerModalOpen(true) }}><Plus className="w-4 h-4 mr-1" />Cadastrar rápido</Button></div></div>
-              <Input id="sale-cliente" value={saleCustomerQuery} onChange={(e) => { setSaleCustomerQuery(e.target.value); setSaleCustomerId(null); setSaleFormData({ ...saleFormData, cliente: e.target.value }) }} onFocus={() => loadCustomers(saleCustomerQuery)} placeholder="Pesquise pelo nome do cliente" autoComplete="off" />
-              {!saleCustomerId && saleCustomerQuery !== "Cliente desconhecido" && saleCustomerQuery.trim() && <div className="absolute z-20 top-[76px] w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-44 overflow-auto">{customers.filter(c => c.nome.toLowerCase().includes(saleCustomerQuery.toLowerCase())).slice(0, 8).map(customer => <button key={customer.id} type="button" className="w-full px-3 py-3 text-left hover:bg-emerald-50 text-base" onClick={() => selectSaleCustomer(customer)}><strong>{customer.nome}</strong>{customer.telefone && <span className="text-slate-600 ml-2">{customer.telefone}</span>}</button>)}{customers.filter(c => c.nome.toLowerCase().includes(saleCustomerQuery.toLowerCase())).length === 0 && <p className="px-3 py-2 text-sm text-slate-500">Nenhum cadastro encontrado. Use “Cadastrar rápido”.</p>}</div>}
+              <div className="relative">
+                <Input
+                  id="sale-cliente"
+                  className="pr-12"
+                  value={saleCustomerQuery}
+                  onChange={(e) => { setMostrarTodosClientes(false); setSaleCustomerQuery(e.target.value); setSaleCustomerId(null); setSaleFormData({ ...saleFormData, cliente: e.target.value }) }}
+                  onFocus={() => loadCustomers(saleCustomerQuery)}
+                  onKeyDown={(e) => { if (e.key === "Escape" && mostrarTodosClientes) { e.stopPropagation(); setMostrarTodosClientes(false) } }}
+                  placeholder="Pesquise pelo nome do cliente"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={alternarListaClientes}
+                  aria-label={mostrarTodosClientes ? "Fechar a lista de clientes" : "Ver todos os clientes"}
+                  aria-expanded={mostrarTodosClientes}
+                  aria-controls="lista-clientes"
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-md text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                >
+                  <ChevronDown className={`h-5 w-5 transition-transform duration-150 ${mostrarTodosClientes ? "rotate-180" : ""}`} aria-hidden />
+                </button>
+
+                {(mostrarTodosClientes || (!saleCustomerId && saleCustomerQuery !== "Cliente desconhecido" && saleCustomerQuery.trim() !== "")) && (() => {
+                  const lista = mostrarTodosClientes
+                    ? [...customers].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+                    : customers.filter((c) => c.nome.toLowerCase().includes(saleCustomerQuery.toLowerCase())).slice(0, 8)
+                  return (
+                    <div id="lista-clientes" className="absolute left-0 top-full z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                      {lista.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          className="flex min-h-12 w-full flex-col items-start justify-center px-3 py-2 text-left text-base hover:bg-emerald-50"
+                          onClick={() => selectSaleCustomer(customer)}
+                        >
+                          <strong className="font-semibold text-slate-900">{customer.nome}</strong>
+                          {(customer.telefone || customer.localizacao) && (
+                            <span className="text-sm text-slate-600">{[customer.telefone, customer.localizacao].filter(Boolean).join(" · ")}</span>
+                          )}
+                        </button>
+                      ))}
+                      {lista.length === 0 && (
+                        <p className="px-3 py-3 text-sm text-slate-600">
+                          {mostrarTodosClientes ? "Nenhum cliente cadastrado ainda. Use “Cadastrar rápido”." : "Nenhum cadastro encontrado. Use “Cadastrar rápido”."}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
               {saleCustomerId && <p className="text-xs font-semibold text-emerald-700">Cliente cadastrado selecionado.</p>}
             </div>
 
