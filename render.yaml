@@ -1,0 +1,22 @@
+# Render Blueprint. For now only the front-end; the API and the database are added in the next step.
+services:
+  - type: web
+    name: agrovendas-front
+    runtime: node
+    # The repository is a monorepo: the front-end lives in its own folder.
+    rootDir: front-end
+    # "free" sleeps after ~15 minutes without visits (the first visit then takes ~1 minute).
+    # Use "starter" for an always-on service.
+    plan: free
+    # Tailwind and TypeScript are devDependencies and are needed to build, so install them too.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      # Public address of the API, as the browser sees it (ends in /api). It is baked into the
+      # build, so after it changes the front-end must be redeployed. Render asks for it on creation.
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
