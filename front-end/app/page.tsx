@@ -2055,6 +2055,17 @@ export default function AgroVendasPage() {
                             placeholder="A definir"
                           />
                         </div>
+                        <p className="text-sm text-slate-600 sm:col-span-3" aria-live="polite">
+                          {(prod.qtde || 0) > 0 && (prod.valor || 0) > 0 ? (
+                            <>
+                              Subtotal deste item:{" "}
+                              <strong className="tabular-nums text-slate-900">{brl((prod.qtde || 0) * (prod.valor || 0))}</strong>
+                              <span className="text-slate-500"> ({prod.qtde} cx &times; {brl(prod.valor || 0)})</span>
+                            </>
+                          ) : (
+                            "Informe a quantidade e o valor para ver o subtotal."
+                          )}
+                        </p>
                       </div>
                       <Button
                         type="button"
@@ -2166,13 +2177,36 @@ export default function AgroVendasPage() {
               )}
             </div>
 
-            {/* Submit Action */}
-            <Button
-              type="submit"
-              className="w-full mt-6"
-            >
-              Salvar Lançamento de Venda
-            </Button>
+            {/* Running total + confirm: stays at the bottom of the dialog while the items scroll */}
+            <div className="sticky bottom-[-1.25rem] sm:bottom-[-1.5rem] z-10 -mx-5 -mb-5 mt-6 border-t border-slate-200 bg-white px-5 pb-5 pt-3 sm:-mx-6 sm:-mb-6 sm:px-6 sm:pb-6">
+              <div className="mb-3 flex items-end justify-between gap-3" aria-live="polite">
+                <div>
+                  <p className="text-sm text-slate-600">Total da compra</p>
+                  <p id="total-compra" className="text-3xl font-semibold tabular-nums tracking-tight text-slate-900">
+                    {vendaSemPreco ? "A definir" : brl(totalVendaForm)}
+                  </p>
+                </div>
+                <div className="text-right text-sm text-slate-600">
+                  <p>
+                    {saleProducts.filter((p) => p.nome).length} {saleProducts.filter((p) => p.nome).length === 1 ? "item" : "itens"} &middot; {totalCaixasVenda} {totalCaixasVenda === 1 ? "caixa" : "caixas"}
+                  </p>
+                  {vendaSemPreco ? (
+                    <p className="font-medium text-amber-700">Sem preço: fica como Devendo</p>
+                  ) : saleFormData.pagamentoVerduras === "Pago" ? (
+                    <p className="font-medium text-emerald-700">Pago integralmente</p>
+                  ) : saleFormData.pagamentoVerduras === "Parcial" ? (
+                    <p className="font-medium text-amber-700">
+                      Pago {brl(saleFormData.valorPago || 0)} &middot; falta {brl(Math.max(0, totalVendaForm - (saleFormData.valorPago || 0)))}
+                    </p>
+                  ) : (
+                    <p className="font-medium text-red-700">Fica devendo {brl(totalVendaForm)}</p>
+                  )}
+                </div>
+              </div>
+              <Button type="submit" className="w-full">
+                Salvar Lançamento de Venda
+              </Button>
+            </div>
 
           </form>
         </DialogContent>

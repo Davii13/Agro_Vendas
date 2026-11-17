@@ -1,12 +1,16 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { aceitaNegativo, removerSinalNegativo, teclaBloqueada } from "@/lib/numberInput.ts"
 
 export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, onKeyDown, onChange, ...props }, ref) => {
+    // Numeric fields never take a negative number: the sign cannot be typed or pasted.
+    const soNaoNegativo = type === "number" && !aceitaNegativo(props.min)
+
     return (
       <input
         type={type}
@@ -15,6 +19,20 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           className
         )}
         ref={ref}
+        onKeyDown={(e) => {
+          if (soNaoNegativo && teclaBloqueada(e.key)) {
+            e.preventDefault()
+            return
+          }
+          onKeyDown?.(e)
+        }}
+        onChange={(e) => {
+          if (soNaoNegativo) {
+            const limpo = removerSinalNegativo(e.target.value)
+            if (limpo !== e.target.value) e.target.value = limpo
+          }
+          onChange?.(e)
+        }}
         {...props}
       />
     )
